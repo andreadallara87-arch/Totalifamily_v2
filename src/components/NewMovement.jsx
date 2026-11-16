@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import Icon from './Icon.jsx'
 import CatChip from './CatChip.jsx'
+import CategoryEditor from './CategoryEditor.jsx'
 import { addDays, addMonths, balancesAt, fromCents } from '../lib/calc.js'
 import { euro } from '../lib/format.js'
 import { accountVisual } from '../lib/visual.js'
@@ -42,7 +43,7 @@ function AccChip({ a, size = '' }) {
 }
 
 /** Schermata per inserire un movimento nuovo o, se riceve `tx`, per modificarlo o eliminarlo. */
-export default function NewMovement({ data, today, initialKind = 'spesa', tx = null, onClose, onSaved, onDeleted }) {
+export default function NewMovement({ data, today, initialKind = 'spesa', tx = null, onClose, onSaved, onDeleted, onCategorySaved }) {
   const wide = useWide()
   const editing = !!tx
   const { accounts, categories, txs, settings } = data
@@ -67,6 +68,7 @@ export default function NewMovement({ data, today, initialKind = 'spesa', tx = n
   const [f, setF] = useState(() => (tx ? formFromTx(tx, mainId) : fresh()))
   const [ui, setUi] = useState(() => ({ sheet: null, sheetRoot: null, q: '', calMonth: today.slice(0, 7), deskRoot: (tx?.category_id && rootOf(tx.category_id)?.id) || null }))
   const [busy, setBusy] = useState(false)
+  const [ed, setEd] = useState(null)
   const [err, setErr] = useState(null)
   const up = (p) => setF((o) => ({ ...o, ...(typeof p === 'function' ? p(o) : p) }))
   const ui2 = (p) => setUi((o) => ({ ...o, ...(typeof p === 'function' ? p(o) : p) }))
@@ -86,6 +88,14 @@ export default function NewMovement({ data, today, initialKind = 'spesa', tx = n
     const u = usualAccount(txs, id)
     up((o) => (o.accTouched ? { cat: id } : { cat: id, acc: u && accById.has(u) ? u : mainId, suggested: !!(u && accById.has(u) && u !== mainId) }))
     ui2({ sheet: null, sheetRoot: null, q: '', deskRoot: rootOf(id)?.id })
+    setErr(null)
+  }
+  // Categoria appena creata dalla schermata: la sceglie subito.
+  function created(cat, isNew) {
+    onCategorySaved(cat, isNew)
+    setEd(null)
+    up((o) => ({ cat: cat.id, suggested: false, acc: o.suggested ? mainId : o.acc }))
+    ui2({ sheet: null, sheetRoot: null, q: '', deskRoot: cat.parent_id || cat.id })
     setErr(null)
   }
   function pickAcc(which, id) {
@@ -304,6 +314,9 @@ export default function NewMovement({ data, today, initialKind = 'spesa', tx = n
                   {f.cat === s.id && <span className="ck"><Icon name="check" /></span>}
                 </button>
               ))}
+              <button type="button" className="mv-row add" onClick={() => setEd({ kind, parentId: r.id })}>
+                <span className="chip sm"><Icon name="plus" size={18} /></span><span className="txt"><span className="nm">Nuova sottocategoria</span></span>
+              </button>
             </div>
           ),
         }
@@ -318,6 +331,7 @@ export default function NewMovement({ data, today, initialKind = 'spesa', tx = n
                 <CatChip root={r} size="lg" /><span className="tn">{r.name}</span>{n > 0 && <span className="tc">{n}</span>}
               </button>
             ) })}
+            <button type="button" className="mv-tile add" onClick={() => setEd({ kind })}><span className="chip lg"><Icon name="plus" size={24} /></span><span className="tn">Nuova categoria</span></button>
           </div>
         )}</>,
       }
@@ -392,6 +406,8 @@ export default function NewMovement({ data, today, initialKind = 'spesa', tx = n
     )
   }
 
+  const edEl = ed && <CategoryEditor data={data} preset={ed} onClose={() => setEd(null)} onSaved={created} onDeleted={() => setEd(null)} />
+
   // telefono ----------------------------------------------------------------
   if (!wide) {
     const c = f.cat && catLabel(f.cat)
@@ -438,6 +454,7 @@ export default function NewMovement({ data, today, initialKind = 'spesa', tx = n
         </div>
         <div className="mv-bottom">{padEl}</div>
         {sheetEl}
+        {edEl}
       </div>
     )
   }
@@ -466,6 +483,7 @@ export default function NewMovement({ data, today, initialKind = 'spesa', tx = n
       main = (
         <div className="mv-dtiles">
           {roots(kind).map((r) => <button key={r.id} type="button" className={`mv-tile${f.cat === r.id ? ' on' : ''}`} onClick={() => pickCat(r.id)}><CatChip root={r} size="lg" /><span className="tn">{r.name}</span></button>)}
+          <button type="button" className="mv-tile add" onClick={() => setEd({ kind })}><span className="chip lg"><Icon name="plus" size={24} /></span><span className="tn">Nuova categoria</span></button>
         </div>
       )
     } else {
@@ -480,6 +498,7 @@ export default function NewMovement({ data, today, initialKind = 'spesa', tx = n
                 <CatChip root={x} size="sm" /><span>{x.name}</span>{selRoot === x.id && <span className="mark" aria-label="scelta" />}{n > 0 && <span className="cnt">{n}</span>}
               </button>
             ) })}
+            <button type="button" className="mv-rrow add" onClick={() => setEd({ kind })}><span className="chip sm c-acc"><Icon name="plus" size={18} /></span><span>Nuova categoria</span></button>
           </div>
           <div className="mv-subs">
             <div className="mv-subt"><CatChip root={r} size="sm" />{r.name}</div>
@@ -491,6 +510,7 @@ export default function NewMovement({ data, today, initialKind = 'spesa', tx = n
                 <CatChip cat={s} root={r} size="xs" /><span className="sn">{s.name}</span>{f.cat === s.id && <Icon name="check" size={18} />}
               </button>
             ))}
+            <button type="button" className="mv-srow add" onClick={() => setEd({ kind, parentId: r.id })}><span className="chip xs c-acc"><Icon name="plus" size={15} /></span><span className="sn">Nuova sottocategoria</span></button>
           </div>
         </div>
       )
@@ -517,6 +537,7 @@ export default function NewMovement({ data, today, initialKind = 'spesa', tx = n
         <div className="mv-right">{right}</div>
         <button type="button" className="hb mv-close" aria-label="Chiudi senza salvare" onClick={onClose}><Icon name="close" /></button>
         {sheetEl}
+        {edEl}
       </div>
     </div>
   )

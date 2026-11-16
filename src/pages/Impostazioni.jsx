@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react'
 import Icon from '../components/Icon.jsx'
+import CatChip from '../components/CatChip.jsx'
+import CategoryEditor from '../components/CategoryEditor.jsx'
 import { supabase } from '../lib/supabase.js'
 import { ACCENTS } from '../lib/appearance.js'
 import { euro } from '../lib/format.js'
@@ -133,10 +135,69 @@ function ImportReport({ imp }) {
   )
 }
 
-export default function Impostazioni({ data, session, look, setLook }) {
+function CategoriesCard({ data, onCategorySaved, onCategoryDeleted }) {
+  const [kind, setKind] = useState('spesa')
+  const [ed, setEd] = useState(null)
+  const { categories, txs } = data
+  const used = new Map()
+  for (const t of txs) if (t.category_id) used.set(t.category_id, (used.get(t.category_id) || 0) + 1)
+  const roots = categories.filter((c) => !c.parent_id && c.kind === kind).sort((a, b) => a.sort_order - b.sort_order)
+  const subsOf = (id) => categories.filter((c) => c.parent_id === id).sort((a, b) => a.sort_order - b.sort_order)
+  return (
+    <section className="card pad" style={{ gridColumn: '1 / -1' }}>
+      <div className="cm-head">
+        <div>
+          <h2 className="h">Categorie</h2>
+          <div className="sb">Tocca una categoria o una sottocategoria per rinominarla, cambiarne icona, colore o budget.</div>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+          <div className="segs">
+            {[['spesa', 'Spese'], ['entrata', 'Entrate']].map(([k, l]) => <button key={k} type="button" className={kind === k ? 'seg on' : 'seg'} aria-pressed={kind === k} onClick={() => setKind(k)}>{l}</button>)}
+          </div>
+          <button type="button" className="btn small" onClick={() => setEd({ preset: { kind } })}><Icon name="plus" size={18} />Nuova categoria</button>
+        </div>
+      </div>
+      <div className="cm-grid">
+        {roots.map((r) => {
+          const subs = subsOf(r.id)
+          const n = (used.get(r.id) || 0) + subs.reduce((s, x) => s + (used.get(x.id) || 0), 0)
+          return (
+            <div className="cm-root" key={r.id}>
+              <button type="button" className="cm-rbtn" onClick={() => setEd({ cat: r })}>
+                <CatChip root={r} size="sm" />
+                <span className="txt"><span className="nm" style={{ display: 'block' }}>{r.name}</span><span className="sb">{n} {n === 1 ? 'movimento' : 'movimenti'}{r.budget ? `, budget ${euro(r.budget, { decimals: false })}` : ''}</span></span>
+                <Icon name="pen" size={16} className="pen" />
+              </button>
+              <div className="cm-subs">
+                {subs.map((x) => (
+                  <button key={x.id} type="button" className="cm-sub" onClick={() => setEd({ cat: x })}><CatChip cat={x} root={r} size="xs" />{x.name}</button>
+                ))}
+                <button type="button" className="cm-sub add" onClick={() => setEd({ preset: { kind, parentId: r.id } })}><Icon name="plus" size={16} />Aggiungi</button>
+              </div>
+            </div>
+          )
+        })}
+      </div>
+      {ed && (
+        <CategoryEditor
+          data={data}
+          cat={ed.cat || null}
+          preset={ed.preset || {}}
+          allowKind
+          onClose={() => setEd(null)}
+          onSaved={(c, created) => { onCategorySaved(c, created); setEd(null); if (created) setKind(c.kind) }}
+          onDeleted={(id) => { onCategoryDeleted(id); setEd(null) }}
+        />
+      )}
+    </section>
+  )
+}
+
+export default function Impostazioni({ data, session, look, setLook, onCategorySaved, onCategoryDeleted }) {
   const email = session?.user?.email
   return (
     <div className="grid g-row2">
+      <CategoriesCard data={data} onCategorySaved={onCategorySaved} onCategoryDeleted={onCategoryDeleted} />
       <section className="card pad">
         <h2 className="h" style={{ marginBottom: 8 }}>Aspetto</h2>
         <AppearancePicker look={look} setLook={setLook} />

@@ -12,6 +12,7 @@ import { loadAll, restoreTransaction, saveAppearance } from './lib/data.js'
 import { apply, readLocal } from './lib/appearance.js'
 import { todayRome } from './lib/calc.js'
 import { insertByDate, replaceTx } from './lib/entry.js'
+import { upsertCategory } from './lib/categories.js'
 import { dayLong } from './lib/format.js'
 
 const PAGES = [
@@ -109,6 +110,14 @@ export default function App() {
     closeNew()
     showToast(message)
   }
+  const onCategorySaved = (cat, created) => {
+    setData((d) => ({ ...d, categories: upsertCategory(d.categories, cat) }))
+    showToast(created ? `Categoria ${cat.name} creata.` : 'Categoria salvata.')
+  }
+  const onCategoryDeleted = (id) => {
+    setData((d) => ({ ...d, categories: d.categories.filter((c) => c.id !== id) }))
+    showToast('Categoria eliminata.')
+  }
   const onDeleted = (full) => {
     setData((d) => ({ ...d, txs: d.txs.filter((t) => t.id !== full.id) }))
     closeNew()
@@ -139,7 +148,7 @@ export default function App() {
   else if (page === 'movimenti') content = <Movimenti data={data} today={today} onEdit={openEdit} />
   else if (page === 'categorie') content = <Categorie data={data} today={today} onEdit={openEdit} />
   else if (page === 'conti') content = <Conti data={data} today={today} />
-  else if (page === 'impostazioni') content = <Impostazioni data={data} session={session} look={look} setLook={setLook} />
+  else if (page === 'impostazioni') content = <Impostazioni data={data} session={session} look={look} setLook={setLook} onCategorySaved={onCategorySaved} onCategoryDeleted={onCategoryDeleted} />
   else content = <Home data={data} today={today} go={go} onNew={openNew} onEdit={openEdit} />
 
   return (
@@ -208,7 +217,7 @@ export default function App() {
           <a key={p.id} className={`tab${page === p.id ? ' on' : ''}`} href={`#/${p.id}`}><Icon name={p.icon} />{p.short || p.label}</a>
         ))}
       </nav>
-      {entry && data && <NewMovement key={entry.tx?.id || 'nuovo'} data={data} today={today} initialKind={entry.kind} tx={entry.tx} onClose={closeNew} onSaved={onSaved} onDeleted={onDeleted} />}
+      {entry && data && <NewMovement key={entry.tx?.id || 'nuovo'} data={data} today={today} initialKind={entry.kind} tx={entry.tx} onClose={closeNew} onSaved={onSaved} onDeleted={onDeleted} onCategorySaved={onCategorySaved} />}
       {toast && (
         <div className="toast" role="status">
           <span>{toast.text}</span>

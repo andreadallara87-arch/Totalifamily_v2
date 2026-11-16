@@ -1,13 +1,14 @@
 import { supabase } from './supabase.js'
 
 const TX_FIELDS = 'id, kind, date, amount, account_id, to_account_id, category_id, note, planned'
+const CAT_FIELDS = 'id, parent_id, kind, name, icon, symbol, tint, budget, sort_order'
 
 const num = (v) => (v === null || v === undefined ? v : Number(v))
 
 export async function loadAll() {
   const [acc, cat, tx, set, imp] = await Promise.all([
     supabase.from('accounts').select('id, name, kind, start_date, initial_balance, overdraft, credit_limit, tan, instalment, instalment_day, auto_instalment, payment_account_id, last_instalment, excluded, archived, sort_order').order('sort_order'),
-    supabase.from('categories').select('id, parent_id, kind, name, icon, symbol, tint, budget, sort_order').order('sort_order'),
+    supabase.from('categories').select(CAT_FIELDS).order('sort_order'),
     supabase.from('transactions').select(TX_FIELDS).order('date', { ascending: false }).order('created_at', { ascending: false }).range(0, 49999),
     supabase.from('user_settings').select('theme, accent, main_account_id').maybeSingle(),
     supabase.from('imports').select('id, source, imported_at, report').order('imported_at', { ascending: false }),
@@ -45,6 +46,20 @@ export async function restoreTransaction(full) {
   const { data, error } = await supabase.from('transactions').insert(full).select(TX_FIELDS).single()
   if (error) throw error
   return { ...data, amount: num(data.amount) }
+}
+
+/** Crea una categoria (senza id) o salva le modifiche a una esistente. */
+export async function saveCategory(id, row) {
+  const q = id ? supabase.from('categories').update(row).eq('id', id) : supabase.from('categories').insert(row)
+  const { data, error } = await q.select(CAT_FIELDS).single()
+  if (error) throw error
+  return { ...data, budget: num(data.budget) }
+}
+
+/** Elimina una categoria. Il database rifiuta se ha sottocategorie o movimenti. */
+export async function deleteCategory(id) {
+  const { error } = await supabase.from('categories').delete().eq('id', id)
+  if (error) throw error
 }
 
 export async function saveAppearance(patch) {
