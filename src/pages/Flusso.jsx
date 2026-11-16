@@ -3,7 +3,7 @@ import Icon from '../components/Icon.jsx'
 import Money from '../components/Money.jsx'
 import CatChip from '../components/CatChip.jsx'
 import FlowChart from '../components/FlowChart.jsx'
-import { addMonths, ym } from '../lib/calc.js'
+import { ym } from '../lib/calc.js'
 import { cashflow, spendingSplit } from '../lib/cashflow.js'
 import { dayMonth, dayShort, euro, monthName, monthShort, monthYear } from '../lib/format.js'
 import { accountVisual } from '../lib/visual.js'
@@ -13,8 +13,9 @@ const STATUS = { reale: 'Reale', 'in corso': 'In corso', previsto: 'Previsto' }
 const mNum = (m) => Number(m.slice(5, 7))
 const mLabel = (m) => monthName(mNum(m))
 const list = (arr) => (arr.length < 2 ? arr.join('') : `${arr.slice(0, -1).join(', ')} e ${arr[arr.length - 1]}`)
+const whole = (v, sign = false) => euro(v, { decimals: false, sign })
 
-/** Colonne mese per mese: entrate in verde, uscite sotto; i mesi previsti sono più chiari. */
+/** Colonne mese per mese: entrate e uscite affiancate; i mesi previsti sono tratteggiati. */
 function MonthColumns({ months, selected, onSelect }) {
   const max = Math.max(...months.map((m) => Math.max(m.in, m.out)), 1)
   return (
@@ -23,7 +24,7 @@ function MonthColumns({ months, selected, onSelect }) {
         const on = m.month === selected
         return (
           <button key={m.month} type="button" role="tab" aria-selected={on} className={`flm-col ${m.status === 'previsto' ? 'prev' : m.status === 'in corso' ? 'now' : ''}${on ? ' on' : ''}`} onClick={() => onSelect(m.month)} aria-label={`${monthYear(m.month)}: entrate ${euro(m.in)}, uscite ${euro(m.out)}`}>
-            <span className={`flm-net ${m.net < 0 ? 'neg' : 'pos'}`}>{euro(m.net, { decimals: false, sign: true })}</span>
+            <span className={`flm-net ${m.net < 0 ? 'neg' : 'pos'}`}>{whole(m.net, true)}</span>
             <span className="flm-bars">
               <i className="in" style={{ height: `${(m.in / max) * 100}%` }} />
               <i className="out" style={{ height: `${(m.out / max) * 100}%` }} />
@@ -48,24 +49,21 @@ export default function Flusso({ data, today }) {
 
   const sel = r.months.find((m) => m.month === month) || r.months.find((m) => m.status === 'in corso')
   const idx = r.months.indexOf(sel)
-  const future = r.months.filter((m) => m.status === 'previsto')
-  const avg = (k) => future.reduce((s, m) => s + m[k], 0) / (future.length || 1)
-  const avgDebt = future.reduce((s, m) => s + m.lines.reduce((t, l) => t + (l.group === 'rate' ? l.capital : l.group === 'debiti' ? l.amount : 0), 0), 0) / (future.length || 1)
   const last = r.months[r.months.length - 1]
   const cashNames = list(r.cashIds.map((id) => accById.get(id)?.name).filter(Boolean))
   const split = sel.status !== 'previsto' ? spendingSplit({ accounts, txs, today, month: sel.month }) : null
-  const estMonths = list(r.estimate.months.map(mLabel))
-  const monthlyEst = spending ?? r.estimate.monthly
+  const t = r.typical
+  const paceLabel = `ultimi ${r.pace.days} giorni`
 
-  // Messaggio principale: quando si va oltre il fido e se si rientra.
+  // Messaggio principale: quando si va oltre il fido.
   const first = r.over[0]
-  const stuck = r.over.find((e) => !e.back)
   let alert = null
   if (first) {
-    const when = first.date === today ? 'Oggi' : dayMonth(first.date)
-    alert = stuck && stuck === first
-      ? `${when}: i conti vanno oltre il fido e, con questo ritmo, non rientrano.`
-      : `${when}: i conti vanno oltre il fido (fino a ${euro(first.max, { decimals: false })} oltre) e rientrano il ${dayMonth(first.back)}.${stuck ? ` Dal ${dayMonth(stuck.date)} restano oltre il fido.` : ''}`
+    const from = first.date === today ? 'Oggi' : `Dal ${dayMonth(first.date)}`
+    const deep = `Il punto più basso è il ${dayMonth(r.low.date)}: ${whole(r.low.value)}, cioè ${whole(r.limit - r.low.value)} oltre il fido.`
+    if (r.over.length > 1) alert = `${from} i conti vanno oltre il fido ${r.over.length} volte nei prossimi ${ahead} mesi. ${deep}`
+    else if (first.back) alert = `${from} al ${dayMonth(first.back)} i conti vanno oltre il fido, fino a ${whole(first.max)} oltre.`
+    else alert = `${from} i conti vanno oltre il fido e, con questo ritmo, non rientrano. ${deep}`
   }
 
   const chipFor = (l) => {
@@ -80,18 +78,23 @@ export default function Flusso({ data, today }) {
   }
   const subFor = (l) => {
     const bits = []
-    if (l.group === 'rate') bits.push(`capitale ${euro(l.capital)} · interessi ${euro(l.interest)}`)
-    if (l.group === 'carte') bits.push('pagamento della carta')
-    if (l.group === 'debiti') bits.push('rimborso')
     if (l.group === 'spese') {
-      if (l.real && l.expected) bits.push(`${euro(l.real)} già spesi, ${euro(l.expected)} stimati`)
-      else if (l.expected) bits.push(l.sources.includes('stima') ? `stima: media di ${estMonths || 'questo mese'}` : 'già inserite')
-      else bits.push(`${l.count} ${l.count === 1 ? 'movimento' : 'movimenti'}`)
-      return bits.join(' · ')
+      if (l.real && l.expected) return `${euro(l.real)} già spesi, ${euro(l.expected)} stimati`
+      if (l.expected) return l.sources.includes('stima') ? `stima: ritmo degli ${paceLabel}` : 'già inserite'
+      return `${l.count} ${l.count === 1 ? 'movimento' : 'movimenti'}`
+    }
+    if (l.group === 'rate') bits.push(`capitale ${euro(l.capital)} · interessi ${euro(l.interest)}`)
+    if (l.group === 'debiti') bits.push('rimborso')
+    if (l.group === 'carte') {
+      if (l.card) {
+        bits.push(`acquisti di ${mLabel(l.card.of)} ${euro(l.card.purchases)}`)
+        if (l.card.plan) bits.push(`piano a rate ${euro(l.card.plan)}`)
+        if (l.card.fee) bits.push(`bollo ${euro(l.card.fee)}`)
+      } else bits.push('pagamento della carta')
     }
     const when = l.dates.length === 1 ? dayShort(l.dates[0]) : l.dates.length > 1 ? `${l.dates.length} volte` : ''
     if (when) bits.push(when)
-    if (l.expected) {
+    if (l.expected && !l.card) {
       const src = l.sources.includes('rata') ? 'rata del finanziamento' : l.sources.includes('ricorrente') ? 'ogni mese, come l’ultima volta' : 'già inserito'
       bits.push(l.real ? `${euro(l.expected)} previsti` : src)
     }
@@ -113,6 +116,11 @@ export default function Flusso({ data, today }) {
 
   const ins = sel.lines.filter((l) => l.dir === 'in')
   const outs = sel.lines.filter((l) => l.dir === 'out')
+  const where = [
+    t.onAccounts < 0 ? `${whole(-t.onAccounts)} in meno sui conti` : t.onAccounts > 0 ? `${whole(t.onAccounts)} in più sui conti` : null,
+    t.onCards < 0 ? `${whole(-t.onCards)} in più di debito sulle carte` : t.onCards > 0 ? `${whole(t.onCards)} in meno di debito sulle carte` : null,
+  ].filter(Boolean)
+  const sliderMax = Math.max(4000, Math.ceil(r.pace.all / 500) * 500 + 1000)
 
   return (
     <>
@@ -121,7 +129,7 @@ export default function Flusso({ data, today }) {
           <div>
             <div className="mute" style={{ fontSize: 15 }}>Saldo dei conti oggi</div>
             <Money className="fl-big" value={r.today} />
-            <div className="sb">{cashNames} insieme{r.limit !== null ? `, con un fido di ${euro(-r.limit, { decimals: false })}` : ''}</div>
+            <div className="sb">{cashNames} insieme{r.limit !== null ? `, con un fido di ${whole(-r.limit)}` : ''}</div>
           </div>
           <div className="segs" role="tablist" aria-label="Previsione">
             {AHEAD.map(([v, l]) => <button key={v} type="button" role="tab" aria-selected={ahead === v} className={ahead === v ? 'seg on' : 'seg'} onClick={() => setAhead(v)}>{l}</button>)}
@@ -130,16 +138,47 @@ export default function Flusso({ data, today }) {
         {alert ? (
           <div className="note c-rosso fl-alert"><Icon name="alert" size={18} /><span>{alert}</span></div>
         ) : (
-          <div className="note c-verde fl-alert"><Icon name="check" size={18} /><span>Nei prossimi {ahead} mesi resti dentro il fido. Punto più basso: {euro(r.low.value, { decimals: false })} il {dayMonth(r.low.date)}.</span></div>
+          <div className="note c-verde fl-alert"><Icon name="check" size={18} /><span>Nei prossimi {ahead} mesi resti dentro il fido. Punto più basso: {whole(r.low.value)} il {dayMonth(r.low.date)}.</span></div>
         )}
         <FlowChart series={r.series} limit={r.limit} today={today} />
         <div className="fl-legend"><span><i className="solid" />saldo reale</span><span><i className="dash" />previsione</span>{r.limit !== null && <span><i className="band" />oltre il fido</span>}</div>
-        <div className="fl-kpis">
-          <div><span>Entrano ogni mese</span><b className="pos">{euro(avg('in'), { decimals: false, sign: true })}</b></div>
-          <div><span>Escono ogni mese</span><b>{euro(-avg('out'), { decimals: false })}</b></div>
-          <div><span>Differenza al mese</span><b className={avg('net') < 0 ? 'warn' : 'pos'}>{euro(avg('net'), { decimals: false, sign: true })}</b>{avgDebt > 0 && <small>di cui {euro(avgDebt, { decimals: false })} riducono i debiti</small>}</div>
-          <div><span>A fine {mLabel(last.month)} {last.month.slice(0, 4)}</span><b className={r.limit !== null && last.end < r.limit ? 'warn' : undefined}>{euro(last.end, { decimals: false })}</b></div>
+      </section>
+
+      <section className="card pad">
+        <div className="fl-sec">
+          <h2 className="h">Dove va quello che entra in un mese</h2>
+          <span className="sb">un mese tipo, al ritmo di adesso</span>
         </div>
+        <div className="fl-steps">
+          <div className="fl-step">
+            <span className="k">Entrano</span>
+            <b className="pos">{whole(t.in, true)}</b>
+            <small>stipendio e altre entrate che si ripetono</small>
+          </div>
+          <div className="fl-step">
+            <span className="k">Vanno ai debiti</span>
+            <b>{whole(-t.debtTotal)}</b>
+            <small>{t.debts.map((d) => `${d.label} ${whole(d.amount)}`).join(' · ')}</small>
+          </div>
+          <div className="fl-step key">
+            <span className="k">Restano per vivere</span>
+            <b>{whole(t.left)}</b>
+            <small>prima di qualsiasi spesa</small>
+          </div>
+          <div className="fl-step">
+            <span className="k">Spendi</span>
+            <b>{whole(-t.spend)}</b>
+            <small>{spending === null ? `ritmo degli ${paceLabel}, su conti e carte` : `cifra di prova. Negli ${paceLabel}: ${whole(r.pace.all)}`}{r.trend.map((x) => <span key={x.month} className="nw"> · {monthShort(mNum(x.month))} {whole(x.total)}</span>)}</small>
+            <input className="fl-range" type="range" min="0" max={sliderMax} step="50" value={Math.round(t.spend)} onChange={(e) => setSpending(Number(e.target.value))} aria-label="Spese al mese" />
+            {spending !== null && <button type="button" className="lnk" onClick={() => setSpending(null)}>Torna al ritmo attuale</button>}
+          </div>
+          <div className={`fl-step res ${t.diff < 0 ? 'neg' : 'ok'}`}>
+            <span className="k">{t.diff < 0 ? 'Mancano' : 'Avanzano'}</span>
+            <b>{whole(Math.abs(t.diff))}</b>
+            <small>{where.join(', ')}</small>
+          </div>
+        </div>
+        <div className="sb fl-foot">Con questo ritmo, a fine {mLabel(last.month)} {last.month.slice(0, 4)} il saldo dei conti sarebbe <b className={r.limit !== null && last.end < r.limit ? 'warn' : undefined}>{whole(last.end)}</b>. Sposta il cursore sotto "Spendi" per vedere cosa cambia.</div>
       </section>
 
       <div className="grid g-fl">
@@ -155,14 +194,14 @@ export default function Flusso({ data, today }) {
               <button type="button" className="hb" aria-label="Mese precedente" disabled={idx <= 0} onClick={() => setMonth(r.months[idx - 1].month)}><Icon name="left" /></button>
               <div style={{ flex: 1, textAlign: 'center' }}>
                 <h2 className="h">{monthYear(sel.month)}<span className={`badge${sel.status === 'reale' ? ' plain' : ''}`}>{STATUS[sel.status]}</span></h2>
-                <div className="sb">Saldo dei conti da {euro(sel.start, { decimals: false })} a {euro(sel.end, { decimals: false })}</div>
+                <div className="sb">Saldo dei conti da {whole(sel.start)} a {whole(sel.end)}</div>
               </div>
               <button type="button" className="hb" aria-label="Mese successivo" disabled={idx >= r.months.length - 1} onClick={() => setMonth(r.months[idx + 1].month)}><Icon name="right" /></button>
             </div>
             <div className="fl-sum">
-              <div><span>Entrate</span><b className="pos">{euro(sel.in, { decimals: false, sign: true })}</b></div>
-              <div><span>Uscite</span><b>{euro(-sel.out, { decimals: false })}</b></div>
-              <div><span>Risultato</span><b className={sel.net < 0 ? 'warn' : 'pos'}>{euro(sel.net, { decimals: false, sign: true })}</b></div>
+              <div><span>Entrate</span><b className="pos">{whole(sel.in, true)}</b></div>
+              <div><span>Uscite</span><b>{whole(-sel.out)}</b></div>
+              <div><span>Risultato</span><b className={sel.net < 0 ? 'warn' : 'pos'}>{whole(sel.net, true)}</b></div>
             </div>
             <div className="lbl">Entrate</div>
             {ins.length ? ins.map(row) : <div className="sb" style={{ padding: '8px 0' }}>Nessuna entrata</div>}
@@ -184,13 +223,23 @@ export default function Flusso({ data, today }) {
 
         <section className="card pad fl-how">
           <h2 className="h">Come faccio la previsione</h2>
-          <div className="lbl">Spese pagate dai conti</div>
-          <div className="fl-est">
-            <Money className="fl-estv" value={monthlyEst} /><span className="sb"> al mese</span>
-          </div>
-          <div className="sb">{spending === null ? `Media di ${estMonths || 'questo mese'}.` : `Media di ${estMonths}: ${euro(r.estimate.monthly)}.`} Prova con un'altra cifra:</div>
-          <input className="fl-range" type="range" min="0" max={Math.max(4000, Math.ceil(r.estimate.monthly / 500) * 500 + 1000)} step="50" value={Math.round(monthlyEst)} onChange={(e) => setSpending(Number(e.target.value))} aria-label="Spese al mese" />
-          {spending !== null && <button type="button" className="lnk" onClick={() => setSpending(null)}>Torna alla media</button>}
+          <div className="lbl">Spese: il ritmo degli {paceLabel}</div>
+          <div className="fl-li"><span>Dai conti</span><b>{euro(r.pace.cash)}</b></div>
+          {r.pace.cards.map((c) => (
+            <div key={c.id} className="fl-li"><span>Con {c.name}</span><b>{euro(c.monthly)}</b></div>
+          ))}
+          <div className="sb" style={{ marginTop: 6 }}>Dal {dayMonth(r.pace.from)} al {dayMonth(r.pace.to)}.</div>
+
+          {r.saldoCards.map((c) => (
+            <div key={c.id}>
+              <div className="lbl">Carta {c.name}</div>
+              <div className="sb">
+                Ogni mese, il {c.day}, paghi gli acquisti del mese prima
+                {c.plan > 0 && <>, più {euro(c.plan)} del piano a rate{c.planUntil ? ` (fino a ${mLabel(c.planUntil)} ${c.planUntil.slice(0, 4)})` : ''}</>}
+                {c.fee > 0 && <> e {euro(c.fee)} di bollo</>}.
+              </div>
+            </div>
+          ))}
 
           <div className="lbl">Ogni mese, come l'ultima volta</div>
           {r.recurring.map((p) => (
@@ -200,9 +249,7 @@ export default function Flusso({ data, today }) {
           {r.loans.map((l) => (
             <div key={l.id} className="fl-li"><span>{l.name}</span><b>−{euro(l.amount)}</b><small>il {l.day}</small></div>
           ))}
-          <div className="sb" style={{ marginTop: 14 }}>
-            Contano anche i movimenti già inseriti con una data futura. Le spese fatte con le carte entrano nel conto quando paghi la carta.
-          </div>
+          <div className="sb" style={{ marginTop: 14 }}>Contano anche i movimenti già inseriti con una data futura.</div>
         </section>
       </div>
     </>
