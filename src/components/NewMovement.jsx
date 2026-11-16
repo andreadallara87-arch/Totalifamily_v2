@@ -4,8 +4,8 @@ import CatChip from './CatChip.jsx'
 import { addDays, addMonths, balancesAt, fromCents } from '../lib/calc.js'
 import { euro } from '../lib/format.js'
 import { accountVisual } from '../lib/visual.js'
-import { addTransaction } from '../lib/data.js'
-import { amountValue, buildTransaction, frequentCategories, frequentPairs, missingField, pressKey, savedMessage, usualAccount } from '../lib/entry.js'
+import { addTransaction, deleteTransaction, updateTransaction } from '../lib/data.js'
+import { amountValue, buildTransaction, formFromTx, frequentCategories, frequentPairs, missingField, pressKey, savedMessage, usualAccount } from '../lib/entry.js'
 
 const KINDS = [['spesa', 'Spesa'], ['entrata', 'Entrata'], ['giroconto', 'Giroconto']]
 const GROUPS = [['conto', 'Conti'], ['carta_revolv', 'Carte'], ['finanziamento', 'Finanziamenti']]
@@ -52,12 +52,15 @@ function AccChip({ a, size = '' }) {
   return <span className={`chip ${size} ${v.chip}`} aria-hidden="true"><Icon name={v.icon} size={size === 'sm' ? 17 : 20} /></span>
 }
 
-export default function NewMovement({ data, today, initialKind = 'spesa', onClose, onSaved }) {
+/** Schermata per inserire un movimento nuovo o, se riceve `tx`, per modificarlo o eliminarlo. */
+export default function NewMovement({ data, today, initialKind = 'spesa', tx = null, onClose, onSaved, onDeleted }) {
   const wide = useWide()
+  const editing = !!tx
   const { accounts, categories, txs, settings } = data
 
   const ctx = useMemo(() => {
-    const accs = accounts.filter((a) => !a.archived)
+    // Un conto archiviato resta visibile solo se è quello del movimento che si sta modificando.
+    const accs = accounts.filter((a) => !a.archived || (tx && (a.id === tx.account_id || a.id === tx.to_account_id)))
     const accById = new Map(accs.map((a) => [a.id, a]))
     const catById = new Map(categories.map((c) => [c.id, c]))
     const isOther = (c) => c.symbol === 'ellipsis' || c.symbol === 'circle-plus'
@@ -67,13 +70,13 @@ export default function NewMovement({ data, today, initialKind = 'spesa', onClos
     const bal = balancesAt(accounts, txs, today)
     const mainId = accById.has(settings?.main_account_id) ? settings.main_account_id : accs.find((a) => a.kind === 'conto')?.id
     return { accs, accById, catById, roots, subsOf, rootOf, balance: (id) => fromCents(bal.get(id) || 0), mainId }
-  }, [accounts, categories, txs, settings, today])
+  }, [accounts, categories, txs, settings, today, tx])
   const { accs, accById, catById, roots, subsOf, rootOf, balance, mainId } = ctx
 
   const fresh = () => ({ amount: '', cat: null, acc: mainId, accTouched: false, suggested: false, from: mainId, to: null, date: today, note: '' })
-  const [kind, setKind] = useState(initialKind)
-  const [f, setF] = useState(fresh)
-  const [ui, setUi] = useState({ sheet: null, sheetRoot: null, q: '', calMonth: today.slice(0, 7), deskRoot: null })
+  const [kind, setKind] = useState(tx ? tx.kind : initialKind)
+  const [f, setF] = useState(() => (tx ? formFromTx(tx, mainId) : fresh()))
+  const [ui, setUi] = useState(() => ({ sheet: null, sheetRoot: null, q: '', calMonth: today.slice(0, 7), deskRoot: (tx?.category_id && rootOf(tx.category_id)?.id) || null }))
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState(null)
   const up = (p) => setF((o) => ({ ...o, ...(typeof p === 'function' ? p(o) : p) }))
@@ -120,10 +123,20 @@ export default function NewMovement({ data, today, initialKind = 'spesa', onClos
     setBusy(true); setErr(null)
     try {
       const row = buildTransaction({ kind, amount: f.amount, date: f.date, accountId: f.acc, fromAccountId: f.from, toAccountId: f.to, categoryId: f.cat, note: f.note, today })
-      const saved = await addTransaction(row)
-      onSaved(saved, savedMessage(kind, saved.amount, f.date, today))
+      const saved = editing ? await updateTransaction(tx.id, row) : await addTransaction(row)
+      onSaved(saved, editing ? 'Modifiche salvate.' : savedMessage(kind, saved.amount, f.date, today))
     } catch (e) {
       setErr(`Non sono riuscito a salvare: ${e?.message || 'errore sconosciuto'}. Riprova.`)
+      setBusy(false)
+    }
+  }
+  async function remove() {
+    if (busy) return
+    setBusy(true); setErr(null)
+    try {
+      onDeleted(await deleteTransaction(tx.id))
+    } catch (e) {
+      setErr(`Non sono riuscito a eliminarlo: ${e?.message || 'errore sconosciuto'}. Riprova.`)
       setBusy(false)
     }
   }
@@ -233,7 +246,7 @@ export default function NewMovement({ data, today, initialKind = 'spesa', onClos
           : <button key={k} type="button" className="mv-key" onClick={() => press(k)}>{k}</button>)}
       </div>
       <button type="button" className={`mv-save${miss ? ' off' : ''}`} aria-disabled={!!miss} disabled={busy} onClick={save}>
-        {busy ? 'Salvo…' : miss || <><Icon name="check" size={20} />Salva {lbl} di {nf2.format(amountValue(f.amount))} €</>}
+        {busy ? 'Salvo…' : miss || <><Icon name="check" size={20} />{editing ? 'Salva le modifiche' : `Salva ${lbl} di ${nf2.format(amountValue(f.amount))} €`}</>}
       </button>
     </>
   )
@@ -348,6 +361,27 @@ export default function NewMovement({ data, today, initialKind = 'spesa', onClos
         ),
       }
     }
+    if (ui.sheet === 'del') {
+      const c = tx.category_id && catById.get(tx.category_id)
+      const what = tx.kind === 'giroconto' ? `Giroconto ${accById.get(tx.account_id)?.name || ''} → ${accById.get(tx.to_account_id)?.name || ''}` : tx.note || c?.name || (tx.kind === 'entrata' ? 'Entrata' : 'Spesa')
+      return {
+        title: 'Eliminare il movimento?',
+        body: (
+          <>
+            <div className="mv-delrow">
+              <span className="txt"><span className="nm">{what}</span><span className="sb">{dateShort(tx.date, today)}</span></span>
+              <b>{nf2.format(tx.amount)} €</b>
+            </div>
+            <div className="mv-calnote">Subito dopo potrai ancora annullare l'eliminazione.</div>
+            {err && <div className="mv-hint err" role="alert"><Icon name="alert" size={15} /><span>{err}</span></div>}
+            <div className="mv-delbtns">
+              <button type="button" className="mv-fchip" onClick={() => ui2({ sheet: null })}>Annulla</button>
+              <button type="button" className="mv-danger" disabled={busy} onClick={remove}><Icon name="trash" size={18} />{busy ? 'Elimino…' : 'Elimina'}</button>
+            </div>
+          </>
+        ),
+      }
+    }
     return { title: { acc: 'Conto', from: 'Da quale conto', to: 'Verso quale conto' }[ui.sheet], body: accList(ui.sheet) }
   }
   let sheetEl = null
@@ -356,7 +390,7 @@ export default function NewMovement({ data, today, initialKind = 'spesa', onClos
     sheetEl = (
       <>
         <div className="mv-scrim" onClick={() => ui2({ sheet: null })} />
-        <div className="mv-sheet" role="dialog" aria-modal="true" aria-label={typeof s.title === 'string' ? s.title : 'Categoria'}>
+        <div className={`mv-sheet${ui.sheet === 'del' ? ' small' : ''}`} role={ui.sheet === 'del' ? 'alertdialog' : 'dialog'} aria-modal="true" aria-label={typeof s.title === 'string' ? s.title : 'Categoria'}>
           <div className="mv-grab" />
           <div className="mv-shead">
             {s.back && <button type="button" className="hb sm" aria-label="Tutte le categorie" onClick={() => ui2({ sheetRoot: null })}><Icon name="left" size={18} /></button>}
@@ -375,14 +409,17 @@ export default function NewMovement({ data, today, initialKind = 'spesa', onClos
     const n = roots(kind), nSubs = n.reduce((s, r) => s + subsOf(r.id).length, 0)
     const from = accById.get(f.from), to = f.to && accById.get(f.to)
     return (
-      <div className="mv mv-phone" role="dialog" aria-modal="true" aria-label="Nuovo movimento">
+      <div className="mv mv-phone" role="dialog" aria-modal="true" aria-label={editing ? 'Modifica movimento' : 'Nuovo movimento'}>
         <div className="mv-glow" />
         <header className="mv-top">
           <button type="button" className="hb" aria-label="Chiudi senza salvare" onClick={onClose}><Icon name="close" /></button>
           {segs}
-          <span style={{ width: 40, flex: 'none' }} />
+          {editing
+            ? <button type="button" className="hb mv-trash" aria-label="Elimina il movimento" onClick={() => open('del')}><Icon name="trash" /></button>
+            : <span style={{ width: 40, flex: 'none' }} />}
         </header>
         <div className="mv-scroll">
+          {editing && <div className="mv-editlbl">Modifica movimento</div>}
           {amountEl}
           {kind === 'giroconto' ? (
             <div className="mv-xfer">
@@ -473,11 +510,14 @@ export default function NewMovement({ data, today, initialKind = 'spesa', onClos
   }
 
   return (
-    <div className="mv mv-desk" role="dialog" aria-modal="true" aria-label="Nuovo movimento">
+    <div className="mv mv-desk" role="dialog" aria-modal="true" aria-label={editing ? 'Modifica movimento' : 'Nuovo movimento'}>
       <div className="mv-backdrop" onClick={onClose} />
       <div className="mv-modal">
         <div className="mv-left">
-          <div><h1>Nuovo movimento</h1><div className="sb" style={{ whiteSpace: 'normal' }}>Puoi scrivere anche con la tastiera: Invio salva, Esc chiude.</div></div>
+          <div className="mv-lhead">
+            <div><h1>{editing ? 'Modifica movimento' : 'Nuovo movimento'}</h1><div className="sb" style={{ whiteSpace: 'normal' }}>Puoi scrivere anche con la tastiera: Invio salva, Esc chiude.</div></div>
+            {editing && <button type="button" className="hb mv-trash" aria-label="Elimina il movimento" title="Elimina il movimento" onClick={() => open('del')}><Icon name="trash" /></button>}
+          </div>
           {segs}
           {amountEl}
           {pills}

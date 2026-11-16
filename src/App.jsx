@@ -7,10 +7,10 @@ import Impostazioni, { AppearancePicker } from './pages/Impostazioni.jsx'
 import Login from './pages/Login.jsx'
 import NewMovement from './components/NewMovement.jsx'
 import { supabase } from './lib/supabase.js'
-import { loadAll, saveAppearance } from './lib/data.js'
+import { loadAll, restoreTransaction, saveAppearance } from './lib/data.js'
 import { apply, readLocal } from './lib/appearance.js'
 import { todayRome } from './lib/calc.js'
-import { insertByDate } from './lib/entry.js'
+import { insertByDate, replaceTx } from './lib/entry.js'
 import { dayLong } from './lib/format.js'
 
 const PAGES = [
@@ -83,25 +83,45 @@ export default function App() {
   }, [])
 
   const go = (id) => { window.location.hash = id === 'home' ? '/' : `/${id}`; setSheet(false); window.scrollTo(0, 0) }
-  const showToast = (text) => {
-    setToast(text)
+  const showToast = (text, action = null) => {
+    setToast({ text, action })
     clearTimeout(toastTimer.current)
-    toastTimer.current = setTimeout(() => setToast(null), 3500)
+    toastTimer.current = setTimeout(() => setToast(null), action ? 7000 : 3500)
   }
-  const openNew = (kind = 'spesa') => {
+  const openEntry = (next) => {
     if (!data || entry) return
     setSheet(false)
-    setEntry(kind)
+    setEntry(next)
     window.history.pushState({ nuovo: true }, '')
   }
+  const openNew = (kind = 'spesa') => openEntry({ kind })
+  const openEdit = (tx) => openEntry({ kind: tx.kind, tx })
   const closeNew = () => {
     if (window.history.state?.nuovo) window.history.back()
     else setEntry(null)
   }
   const onSaved = (row, message) => {
-    setData((d) => ({ ...d, txs: insertByDate(d.txs, row) }))
+    const edited = !!entry?.tx
+    setData((d) => ({ ...d, txs: edited ? replaceTx(d.txs, row) : insertByDate(d.txs, row) }))
     closeNew()
     showToast(message)
+  }
+  const onDeleted = (full) => {
+    setData((d) => ({ ...d, txs: d.txs.filter((t) => t.id !== full.id) }))
+    closeNew()
+    showToast('Movimento eliminato.', {
+      label: 'Annulla',
+      run: async () => {
+        setToast(null)
+        try {
+          const row = await restoreTransaction(full)
+          setData((d) => ({ ...d, txs: insertByDate(d.txs.filter((t) => t.id !== row.id), row) }))
+          showToast('Movimento ripristinato.')
+        } catch (e) {
+          showToast(`Non sono riuscito a ripristinarlo: ${e?.message || 'errore sconosciuto'}.`)
+        }
+      },
+    })
   }
 
   if (session === undefined) return null
@@ -113,10 +133,10 @@ export default function App() {
   let content
   if (error) content = <section className="card pad"><h2 className="h">Non riesco a leggere i dati</h2><div className="sb">{error}</div></section>
   else if (!data) content = <section className="card pad"><div className="sb">Carico i tuoi dati…</div></section>
-  else if (page === 'movimenti') content = <Movimenti data={data} today={today} />
+  else if (page === 'movimenti') content = <Movimenti data={data} today={today} onEdit={openEdit} />
   else if (page === 'conti') content = <Conti data={data} today={today} />
   else if (page === 'impostazioni') content = <Impostazioni data={data} session={session} look={look} setLook={setLook} />
-  else content = <Home data={data} today={today} go={go} onNew={openNew} />
+  else content = <Home data={data} today={today} go={go} onNew={openNew} onEdit={openEdit} />
 
   return (
     <>
@@ -184,8 +204,13 @@ export default function App() {
           <a key={p.id} className={`tab${page === p.id ? ' on' : ''}`} href={`#/${p.id}`}><Icon name={p.icon} />{p.short || p.label}</a>
         ))}
       </nav>
-      {entry && data && <NewMovement data={data} today={today} initialKind={entry} onClose={closeNew} onSaved={onSaved} />}
-      {toast && <div className="toast" role="status">{toast}</div>}
+      {entry && data && <NewMovement key={entry.tx?.id || 'nuovo'} data={data} today={today} initialKind={entry.kind} tx={entry.tx} onClose={closeNew} onSaved={onSaved} onDeleted={onDeleted} />}
+      {toast && (
+        <div className="toast" role="status">
+          <span>{toast.text}</span>
+          {toast.action && <button type="button" className="toast-act" onClick={toast.action.run}>{toast.action.label}</button>}
+        </div>
+      )}
     </>
   )
 }

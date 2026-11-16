@@ -81,6 +81,36 @@ export function buildTransaction({ kind, amount, date, accountId, fromAccountId,
   }
 }
 
+/** Importo salvato riportato nel formato del tastierino (4.5 → "4,50", 200 → "200"). */
+export function amountText(n) {
+  const v = Math.round((Number(n) || 0) * 100) / 100
+  if (!v) return ''
+  return Number.isInteger(v) ? String(v) : v.toFixed(2).replace('.', ',')
+}
+
+/** Valori iniziali della schermata quando si apre un movimento già salvato. */
+export function formFromTx(tx, mainId) {
+  const giro = tx.kind === 'giroconto'
+  return {
+    amount: amountText(tx.amount),
+    cat: giro ? null : tx.category_id || null,
+    acc: giro ? mainId : tx.account_id,
+    accTouched: true,
+    suggested: false,
+    from: giro ? tx.account_id : mainId,
+    to: giro ? tx.to_account_id : null,
+    date: tx.date,
+    note: tx.note || '',
+  }
+}
+
+/** Sostituisce un movimento modificato: resta al suo posto se la data non cambia, altrimenti si sposta. */
+export function replaceTx(txs, tx) {
+  const old = txs.find((t) => t.id === tx.id)
+  if (old && old.date === tx.date) return txs.map((t) => (t.id === tx.id ? tx : t))
+  return insertByDate(txs.filter((t) => t.id !== tx.id), tx)
+}
+
 /** Inserisce un movimento nella lista ordinata per data decrescente (i più recenti in cima). */
 export function insertByDate(txs, tx) {
   const i = txs.findIndex((t) => t.date <= tx.date)

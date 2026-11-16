@@ -12,7 +12,7 @@ const FILTERS = [
   { id: 'giroconto', label: 'Giroconti' },
 ]
 
-export default function Movimenti({ data, today }) {
+export default function Movimenti({ data, today, onEdit }) {
   const [month, setMonth] = useState(ym(today))
   const [filter, setFilter] = useState('tutti')
   const [q, setQ] = useState('')
@@ -79,11 +79,11 @@ export default function Movimenti({ data, today }) {
             const sub = t.kind === 'giroconto' ? t.note || 'Giroconto' : [root && c && root.id !== c.id ? `${root.name} › ${c.name}` : c?.name, acc].filter(Boolean).join(' · ')
             const sign = t.kind === 'entrata' ? 1 : t.kind === 'spesa' ? -1 : 0
             return (
-              <div className="row" key={t.id}>
+              <button type="button" className="row tap" key={t.id} onClick={() => onEdit(t)}>
                 {c && t.kind !== 'giroconto' ? <CatChip cat={c} root={root} /> : <div className={`chip ${kv.chip}`}><Icon name={kv.icon} /></div>}
                 <div className="txt"><div className="nm">{title}{t.planned ? <span className="badge">previsto</span> : null}</div><div className="sb">{sub}</div></div>
                 <div className="am" style={sign > 0 ? { color: 'var(--pos)' } : sign === 0 ? { color: 'var(--mute)' } : undefined}>{euro(sign === 0 ? t.amount : sign * t.amount, { sign: sign > 0 })}</div>
-              </div>
+              </button>
             )
           })}
         </div>

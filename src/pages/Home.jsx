@@ -15,7 +15,7 @@ const PERIODS = [
   { id: 'anno', label: 'Anno', short: 'Anno', days: 365 },
 ]
 
-export default function Home({ data, today, go, onNew }) {
+export default function Home({ data, today, go, onNew, onEdit }) {
   const [period, setPeriod] = useState('mese')
   const { accounts, categories, txs, settings } = data
 
@@ -81,7 +81,7 @@ export default function Home({ data, today, go, onNew }) {
             <div className="hero-left">
               <div className="mute" style={{ fontSize: 15 }}>Disponibile {m.main ? `su ${m.main.name}` : ''}</div>
               <Money className="big" value={available} />
-              <div><span className="pill" style={{ marginTop: 6 }}>{euro(diff, { sign: true })} da inizio mese</span></div>
+              <div><span className="pill" style={{ marginTop: 6 }}>{euro(diff, { sign: true })} sul conto da inizio mese</span></div>
               <div className="fido">
                 <div className="kv"><span className="mute">Saldo del conto</span><b>{euro(m.mainBal)}</b></div>
                 {overdraft > 0 && (
@@ -124,12 +124,14 @@ export default function Home({ data, today, go, onNew }) {
             const v = it.source === 'rata' ? { icon: 'bank', chip: 'c-viola' } : kindVisual(it.kind)
             const cat = it.kind !== 'giroconto' && it.category_id && m.catsById.get(it.category_id)
             const s = itemSign(it)
+            const tx = it.source === 'movimento' && txs.find((t) => t.id === it.key)
+            const Row = tx ? 'button' : 'div'
             return (
-              <div className="row" key={it.key}>
+              <Row className={`row${tx ? ' tap' : ''}`} key={it.key} {...(tx ? { type: 'button', onClick: () => onEdit(tx) } : {})}>
                 {cat ? <CatChip cat={cat} root={rootCategory(m.catsById, cat.id)} /> : <div className={`chip ${v.chip}`}><Icon name={v.icon} /></div>}
                 <div className="txt"><div className="nm">{itemLabel(it)}</div><div className="sb">{relativeDay(it.date, today)}{it.source === 'rata' ? ', rata automatica' : ''}</div></div>
                 <div className="am" style={s > 0 ? { color: 'var(--pos)' } : undefined}>{euro(s * it.amount, { decimals: false, sign: true })}</div>
-              </div>
+              </Row>
             )
           })}
           {m.risk && (
@@ -163,7 +165,7 @@ export default function Home({ data, today, go, onNew }) {
         <section className="card pad">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <h2 className="h">Spese di {monthName(Number(today.slice(5, 7)))}</h2>
-            <span className="sb">al {Number(today.slice(8, 10))}</span>
+            <span className="sb">tutti i conti e carte</span>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 20, marginTop: 14 }}>
             <Donut parts={m.parts}>

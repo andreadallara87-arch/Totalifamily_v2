@@ -164,3 +164,17 @@
 @media (prefers-reduced-motion: reduce) {
   .mv *, .mv { animation: none !important; transition: none !important; }
 }
+
+/* Modifica ed eliminazione */
+.mv-editlbl { text-align: center; font-size: 13px; font-weight: 600; color: var(--mute); margin-bottom: -10px; }
+.mv-trash { color: var(--warn); flex: none; }
+.mv-lhead { display: flex; align-items: flex-start; gap: 10px; }
+.mv-lhead > div { flex: 1; min-width: 0; }
+.mv-delrow { display: flex; align-items: center; gap: 12px; padding: 14px 16px; border-radius: 16px; background: var(--soft); margin-top: 4px; }
+.mv-delrow .txt { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.mv-delrow .nm { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mv-delrow b { font-size: 16px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.mv-delbtns { display: flex; gap: 10px; margin-top: 14px; }
+.mv-delbtns > * { flex: 1; height: 48px; justify-content: center; font-size: 15px; font-weight: 600; }
+.mv-danger { display: inline-flex; align-items: center; gap: 8px; border-radius: 24px; background: var(--warn); color: #fff; }
+.tf.scuro .mv-danger { color: #1A0B09; }
