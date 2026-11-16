@@ -4,6 +4,7 @@ import Home from './pages/Home.jsx'
 import Movimenti from './pages/Movimenti.jsx'
 import Categorie from './pages/Categorie.jsx'
 import Flusso from './pages/Flusso.jsx'
+import Andamento from './pages/Andamento.jsx'
 import Ricorrenti from './pages/Ricorrenti.jsx'
 import Conti from './pages/Conti.jsx'
 import Impostazioni, { AppearancePicker } from './pages/Impostazioni.jsx'
@@ -22,13 +23,14 @@ const PAGES = [
   { id: 'home', label: 'Home', icon: 'home' },
   { id: 'movimenti', label: 'Movimenti', icon: 'list' },
   { id: 'categorie', label: 'Categorie', icon: 'pie', desktopOnly: true },
+  { id: 'andamento', label: 'Andamento', icon: 'bars', desktopOnly: true },
   { id: 'flusso', label: 'Flusso di cassa', icon: 'trend', desktopOnly: true },
   { id: 'ricorrenti', label: 'Ricorrenti', icon: 'rotate', desktopOnly: true },
   { id: 'conti', label: 'Conti e carte', short: 'Conti', icon: 'card' },
   { id: 'impostazioni', label: 'Impostazioni', icon: 'settings' },
 ]
 const TABS = PAGES.filter((p) => !p.desktopOnly)
-const TITLES = { movimenti: 'Movimenti', categorie: 'Spese per categoria', flusso: 'Flusso di cassa', ricorrenti: 'Movimenti ricorrenti', conti: 'Conti e carte', impostazioni: 'Impostazioni' }
+const TITLES = { movimenti: 'Movimenti', categorie: 'Spese per categoria', andamento: 'Andamento mese per mese', flusso: 'Flusso di cassa', ricorrenti: 'Movimenti ricorrenti', conti: 'Conti e carte', impostazioni: 'Impostazioni' }
 
 const routeFromHash = () => {
   const id = window.location.hash.replace(/^#\/?/, '').split('?')[0]
@@ -193,6 +195,7 @@ export default function App() {
   else if (!data) content = <section className="card pad"><div className="sb">Carico i tuoi dati…</div></section>
   else if (page === 'movimenti') content = <Movimenti data={data} today={today} onEdit={openEdit} />
   else if (page === 'categorie') content = <Categorie data={data} today={today} onEdit={openEdit} />
+  else if (page === 'andamento') content = <Andamento data={data} today={today} go={go} />
   else if (page === 'flusso') content = <Flusso data={data} today={today} onTxSaved={onTxSaved} onDeleted={onDeleted} onEditCard={setCardEd} />
   else if (page === 'ricorrenti') content = <Ricorrenti data={data} today={today} onRuleSaved={onRuleSaved} onRuleDeleted={onRuleDeleted} onIgnored={onIgnored} />
   else if (page === 'conti') content = <Conti data={data} today={today} onEditCard={setCardEd} />

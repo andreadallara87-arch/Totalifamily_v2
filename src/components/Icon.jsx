@@ -34,6 +34,8 @@ const P = {
   backspace: <><path d="M9 5h10a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H9l-6-7z" /><path d="M12 9.5l5 5M17 9.5l-5 5" /></>,
   grid: <><rect x="4" y="4" width="7" height="7" rx="2" /><rect x="13" y="4" width="7" height="7" rx="2" /><rect x="4" y="13" width="7" height="7" rx="2" /><rect x="13" y="13" width="7" height="7" rx="2" /></>,
   spark: <path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z" />,
+  filter: <path d="M4 6h16M7 12h10M10 18h4" />,
+  bars: <path d="M5 20V11M10 20V5M15 20v-7M20 20V9" />,
   pie: <><path d="M11 4a8 8 0 1 0 9 9h-9z" /><path d="M14 3.2A8 8 0 0 1 20.8 10H14z" /></>,
   arrow: <path d="M5 12h14M13 6l6 6-6 6" />,
   trend: <><path d="M3 3v18h18" /><path d="M7 15l4-4 3 3 5-6" /></>,
