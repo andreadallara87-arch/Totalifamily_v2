@@ -1,0 +1,35 @@
+/* Generato dalla grafica approvata: temi, colori d'accento e colori delle icone */
+.tf.scuro{--bg:#09090B;--card:rgba(255,255,255,.045);--cardsolid:#121215;--line:rgba(255,255,255,.08);--ink:#F4F4F5;--mute:#A1A1AA;--pos:#4ADE9F;--warn:#FF9C90;--warnline:rgba(255,156,144,.55);--soft:rgba(255,255,255,.05);--soft2:rgba(255,255,255,.08);--track:rgba(255,255,255,.1);--grid:rgba(255,255,255,.12);--bar2:rgba(255,255,255,.34);--tip:#26262B;--segon:rgba(255,255,255,.14);--segsh:none;--nav:#1A1A1F;--shadow:none;--navsh:0 12px 32px rgba(0,0,0,.6);--tipsh:none;--ga:.2;--gb:.1;--gp:.28;--aa:.34;--lg:.7}
+.tf.chiaro{--bg:#F1F1F4;--card:#FFFFFF;--cardsolid:#FFFFFF;--line:rgba(20,20,40,.07);--ink:#17171C;--mute:#696975;--pos:#047857;--warn:#C8372B;--warnline:rgba(200,55,43,.5);--soft:rgba(20,20,40,.04);--soft2:rgba(20,20,40,.06);--track:rgba(20,20,40,.08);--grid:rgba(20,20,40,.13);--bar2:rgba(20,20,40,.2);--tip:#FFFFFF;--segon:#FFFFFF;--segsh:0 1px 3px rgba(20,20,40,.12);--nav:#FFFFFF;--shadow:0 1px 2px rgba(20,20,40,.04),0 10px 30px rgba(20,20,40,.06);--navsh:0 10px 30px rgba(20,20,40,.16);--tipsh:0 6px 18px rgba(20,20,40,.12);--ga:.18;--gb:.1;--gp:.24;--aa:.24;--lg:.35}
+.tf.scuro.blu{--acc:#4C8DFF;--acct:#4C8DFF;--on:#06122B;--rgb:76,141,255}
+.tf.chiaro.blu{--acc:#2F6FEB;--acct:#2563EB;--on:#FFFFFF;--rgb:47,111,235}
+.tf.scuro .k-blu{background:#4C8DFF}.tf.chiaro .k-blu{background:#2F6FEB}
+.tf.scuro.lime{--acc:#B8F23E;--acct:#B8F23E;--on:#10210A;--rgb:184,242,62}
+.tf.chiaro.lime{--acc:#A3E635;--acct:#4D7C0F;--on:#14250A;--rgb:132,204,22}
+.tf.scuro .k-lime{background:#B8F23E}.tf.chiaro .k-lime{background:#A3E635}
+.tf.scuro.viola{--acc:#A98BFF;--acct:#A98BFF;--on:#160B33;--rgb:169,139,255}
+.tf.chiaro.viola{--acc:#7357F6;--acct:#6342E8;--on:#FFFFFF;--rgb:115,87,246}
+.tf.scuro .k-viola{background:#A98BFF}.tf.chiaro .k-viola{background:#7357F6}
+.tf.scuro.arancio{--acc:#FF9D47;--acct:#FF9D47;--on:#2B1300;--rgb:255,157,71}
+.tf.chiaro.arancio{--acc:#FF8A2B;--acct:#C2410C;--on:#2B1300;--rgb:249,115,22}
+.tf.scuro .k-arancio{background:#FF9D47}.tf.chiaro .k-arancio{background:#FF8A2B}
+.tf.scuro.rosa{--acc:#FF6FB5;--acct:#FF6FB5;--on:#33071D;--rgb:255,111,181}
+.tf.chiaro.rosa{--acc:#D9367F;--acct:#C0266D;--on:#FFFFFF;--rgb:217,54,127}
+.tf.scuro .k-rosa{background:#FF6FB5}.tf.chiaro .k-rosa{background:#D9367F}
+.tf.scuro.menta{--acc:#34D3B4;--acct:#34D3B4;--on:#032620;--rgb:52,211,180}
+.tf.chiaro.menta{--acc:#2CCFAE;--acct:#0F7F69;--on:#032620;--rgb:20,184,150}
+.tf.scuro .k-menta{background:#34D3B4}.tf.chiaro .k-menta{background:#2CCFAE}
+.tf.scuro.oro{--acc:#F5C542;--acct:#F5C542;--on:#2A1E00;--rgb:245,197,66}
+.tf.chiaro.oro{--acc:#F5C542;--acct:#92600A;--on:#2A1E00;--rgb:234,179,8}
+.tf.scuro .k-oro{background:#F5C542}.tf.chiaro .k-oro{background:#F5C542}
+.tf.scuro.neutro{--acc:#F4F4F5;--acct:#F4F4F5;--on:#09090B;--rgb:228,228,231}
+.tf.chiaro.neutro{--acc:#18181B;--acct:#18181B;--on:#FFFFFF;--rgb:24,24,27}
+.tf.scuro .k-neutro{background:#F4F4F5}.tf.chiaro .k-neutro{background:#18181B}
+.tf.scuro .c-rosa{background:rgba(244,114,182,.16);color:#F9A8D4}.tf.chiaro .c-rosa{background:rgba(236,72,153,.12);color:#DB2777}
+.tf.scuro .c-verde{background:rgba(74,222,159,.14);color:#5FE3AC}.tf.chiaro .c-verde{background:rgba(16,185,129,.13);color:#047857}
+.tf.scuro .c-blu{background:rgba(96,165,250,.16);color:#8DBBFF}.tf.chiaro .c-blu{background:rgba(59,130,246,.12);color:#2563EB}
+.tf.scuro .c-viola{background:rgba(169,139,255,.16);color:#C4B1FF}.tf.chiaro .c-viola{background:rgba(139,92,246,.12);color:#7C3AED}
+.tf.scuro .c-teal{background:rgba(45,212,191,.14);color:#5EEAD4}.tf.chiaro .c-teal{background:rgba(20,184,166,.13);color:#0F766E}
+.tf.scuro .c-arancio{background:rgba(255,157,71,.16);color:#FFB877}.tf.chiaro .c-arancio{background:rgba(249,115,22,.12);color:#C2410C}
+.tf.scuro .c-giallo{background:rgba(250,204,21,.14);color:#FDE047}.tf.chiaro .c-giallo{background:rgba(234,179,8,.16);color:#92600A}
+.tf.scuro .c-rosso{background:rgba(255,122,107,.16);color:#FFA397}.tf.chiaro .c-rosso{background:rgba(239,68,68,.10);color:#C8372B}
