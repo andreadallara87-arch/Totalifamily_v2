@@ -165,8 +165,9 @@ export default function Home({ data, today, go, onNew, onEdit }) {
         <section className="card pad">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <h2 className="h">Spese di {monthName(Number(today.slice(5, 7)))}</h2>
-            <span className="sb">tutti i conti e carte</span>
+            <a className="lnk" href="#/categorie" onClick={(e) => { e.preventDefault(); go('categorie') }}>Dettagli</a>
           </div>
+          <div className="sb">su tutti i conti e carte, al {Number(today.slice(8, 10))} {monthName(Number(today.slice(5, 7)))}</div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 20, marginTop: 14 }}>
             <Donut parts={m.parts}>
               <div style={{ fontSize: 21, lineHeight: '24px', fontWeight: 700, letterSpacing: '-0.02em' }}>{euro(m.spend.total, { decimals: false })}</div>

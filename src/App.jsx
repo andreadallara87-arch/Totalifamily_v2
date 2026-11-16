@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import Icon from './components/Icon.jsx'
 import Home from './pages/Home.jsx'
 import Movimenti from './pages/Movimenti.jsx'
+import Categorie from './pages/Categorie.jsx'
 import Conti from './pages/Conti.jsx'
 import Impostazioni, { AppearancePicker } from './pages/Impostazioni.jsx'
 import Login from './pages/Login.jsx'
@@ -16,10 +17,12 @@ import { dayLong } from './lib/format.js'
 const PAGES = [
   { id: 'home', label: 'Home', icon: 'home' },
   { id: 'movimenti', label: 'Movimenti', icon: 'list' },
+  { id: 'categorie', label: 'Categorie', icon: 'pie', desktopOnly: true },
   { id: 'conti', label: 'Conti e carte', short: 'Conti', icon: 'card' },
   { id: 'impostazioni', label: 'Impostazioni', icon: 'settings' },
 ]
-const TITLES = { movimenti: 'Movimenti', conti: 'Conti e carte', impostazioni: 'Impostazioni' }
+const TABS = PAGES.filter((p) => !p.desktopOnly)
+const TITLES = { movimenti: 'Movimenti', categorie: 'Spese per categoria', conti: 'Conti e carte', impostazioni: 'Impostazioni' }
 
 const routeFromHash = () => {
   const id = window.location.hash.replace(/^#\/?/, '').split('?')[0]
@@ -134,6 +137,7 @@ export default function App() {
   if (error) content = <section className="card pad"><h2 className="h">Non riesco a leggere i dati</h2><div className="sb">{error}</div></section>
   else if (!data) content = <section className="card pad"><div className="sb">Carico i tuoi dati…</div></section>
   else if (page === 'movimenti') content = <Movimenti data={data} today={today} onEdit={openEdit} />
+  else if (page === 'categorie') content = <Categorie data={data} today={today} onEdit={openEdit} />
   else if (page === 'conti') content = <Conti data={data} today={today} />
   else if (page === 'impostazioni') content = <Impostazioni data={data} session={session} look={look} setLook={setLook} />
   else content = <Home data={data} today={today} go={go} onNew={openNew} onEdit={openEdit} />
@@ -196,11 +200,11 @@ export default function App() {
       </div>
 
       <nav className="tabbar" aria-label="Sezioni">
-        {PAGES.slice(0, 2).map((p) => (
+        {TABS.slice(0, 2).map((p) => (
           <a key={p.id} className={`tab${page === p.id ? ' on' : ''}`} href={p.id === 'home' ? '#/' : `#/${p.id}`}><Icon name={p.icon} />{p.short || p.label}</a>
         ))}
         <button type="button" className="fab" aria-label="Nuovo movimento" disabled={!data} onClick={() => openNew('spesa')}><Icon name="plus" size={24} style={{ strokeWidth: 2.4 }} /></button>
-        {PAGES.slice(2).map((p) => (
+        {TABS.slice(2).map((p) => (
           <a key={p.id} className={`tab${page === p.id ? ' on' : ''}`} href={`#/${p.id}`}><Icon name={p.icon} />{p.short || p.label}</a>
         ))}
       </nav>

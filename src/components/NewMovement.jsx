@@ -4,6 +4,7 @@ import CatChip from './CatChip.jsx'
 import { addDays, addMonths, balancesAt, fromCents } from '../lib/calc.js'
 import { euro } from '../lib/format.js'
 import { accountVisual } from '../lib/visual.js'
+import useWide from '../lib/useWide.js'
 import { addTransaction, deleteTransaction, updateTransaction } from '../lib/data.js'
 import { amountValue, buildTransaction, formFromTx, frequentCategories, frequentPairs, missingField, pressKey, savedMessage, usualAccount } from '../lib/entry.js'
 
@@ -33,18 +34,6 @@ export function dateWords(s, today) {
   if (k === -1) return 'ieri'
   if (k === 1) return 'domani'
   return `${WDL[d.getUTCDay()]} ${d.getUTCDate()} ${ML[d.getUTCMonth()]}`
-}
-
-function useWide() {
-  const q = '(min-width: 861px)'
-  const [wide, setWide] = useState(() => window.matchMedia(q).matches)
-  useEffect(() => {
-    const mq = window.matchMedia(q)
-    const on = () => setWide(mq.matches)
-    mq.addEventListener('change', on)
-    return () => mq.removeEventListener('change', on)
-  }, [])
-  return wide
 }
 
 function AccChip({ a, size = '' }) {
