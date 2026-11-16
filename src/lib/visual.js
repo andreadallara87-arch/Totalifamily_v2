@@ -22,14 +22,6 @@ export function kindVisual(kind) {
   return { icon: 'down', chip: 'c-rosso' }
 }
 
-const CHIPS = ['c-rosa', 'c-arancio', 'c-viola', 'c-verde', 'c-blu', 'c-teal', 'c-giallo', 'c-rosso']
-export function categoryChip(root) {
-  if (!root) return 'c-blu'
-  let h = 0
-  for (const ch of root.id) h = (h * 31 + ch.charCodeAt(0)) >>> 0
-  return CHIPS[h % CHIPS.length]
-}
-
 export function accountSubtitle(a, balance) {
   if (a.kind === 'conto' && Number(a.overdraft) > 0) {
     return balance < 0 ? `Fido usato al ${Math.round((-balance / a.overdraft) * 100)}%` : `Fido di ${Math.round(a.overdraft).toLocaleString('it-IT')} €`
