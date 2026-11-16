@@ -122,6 +122,43 @@ test('oltre il fido: con più spese si va sotto e non si rientra', () => {
   assert.ok(r.low.value < -500)
 })
 
+test('dentro il fido: quanto si può ancora spendere con i soli impegni certi', () => {
+  const r = cashflow({ accounts, categories, txs, today, ahead: 3, spending: 0 })
+  assert.equal(r.budget.available, 810)
+  assert.deepEqual(r.budget.windows, [
+    { from: '2026-11-11', until: '2026-11-15', amount: 219.74 },
+    { from: '2026-11-16', until: '2026-12-15', amount: 1289.74 },
+  ])
+  assert.deepEqual(r.budget.steps, [{ from: '2026-11-10', amount: 219.74 }])
+  assert.equal(r.budget.short, null)
+  assert.deepEqual(r.items.slice(0, 4).map((i) => [i.date, i.label, i.dir, i.amount, i.after]), [
+    ['2026-11-15', 'Carta Saldo', 'out', 390.26, 419.74],
+    ['2026-11-15', 'Carta Carta', 'out', 200, 219.74],
+    ['2026-11-27', 'Stipendio', 'in', 2000, 2219.74],
+    ['2026-12-05', 'Rata Prestito', 'out', 300, 1919.74],
+  ])
+  assert.deepEqual(r.cards.map((c) => [c.name, c.saldo, c.debt, c.monthly, c.next.map((x) => [x.date, x.amount])]), [
+    ['Carta', false, -250, 0, [['2026-11-15', 200], ['2026-12-15', 200]]],
+    ['Saldo', true, 520, 420, [['2026-11-15', 390.26], ['2026-12-15', 210.26]]],
+  ])
+  assert.deepEqual([r.typical.revolving, r.typical.budget, r.typical.paceHit], [200, 1409.74, 1320])
+})
+
+test('dentro il fido: una spesa di oggi pesa sui giorni dopo, quindi contano i tempi', () => {
+  const more = [...txs, tx('spesa', '2026-11-12', 700, 'c', { planned: true }), tx('entrata', '2026-11-13', 1000, 'c', { planned: true })]
+  const r = cashflow({ accounts, categories, txs: more, today, ahead: 3, spending: 0 })
+  assert.deepEqual(r.budget.steps, [{ from: '2026-11-10', amount: 110 }, { from: '2026-11-13', amount: 519.74 }])
+  assert.equal(r.budget.windows[0].amount, 519.74)
+})
+
+test('dentro il fido: se gli impegni certi non ci stanno, dice da quando e quanto manca', () => {
+  const noFido = accounts.map((a) => (a.id === 'c' ? { ...a, overdraft: 0 } : a))
+  const r = cashflow({ accounts: noFido, categories, txs, today, ahead: 3, spending: 0 })
+  assert.equal(r.budget.available, 310)
+  assert.deepEqual(r.budget.short, { date: '2026-11-15', amount: 280.26 })
+  assert.deepEqual(r.budget.windows.map((w) => w.amount), [-280.26, 1009.48])
+})
+
 test('spese del mese divise per dove sono state pagate', () => {
   assert.deepEqual(spendingSplit({ accounts, txs, today, month: '2026-10' }), { total: 1174, cash: 800, cards: 350, interest: 24, other: 0 })
 })

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { euro, dayShort } from '../lib/format.js'
 
-export function useWidth() {
+function useWidth() {
   const ref = useRef(null)
   const [w, setW] = useState(0)
   useEffect(() => {
@@ -14,7 +14,7 @@ export function useWidth() {
 }
 
 // Curva monotona (nessun "rimbalzo" sopra o sotto i valori reali).
-export function monotonePath(pts) {
+function monotonePath(pts) {
   const n = pts.length
   if (n === 0) return ''
   if (n === 1) return `M${pts[0][0]},${pts[0][1]}`
@@ -36,7 +36,7 @@ export function monotonePath(pts) {
   return d
 }
 
-export function niceStep(range) {
+function niceStep(range) {
   const steps = [50, 100, 200, 250, 500, 1000, 1500, 2000, 2500, 5000, 10000, 20000, 25000, 50000, 100000]
   return steps.find((s) => range / s <= 3) || 200000
 }

@@ -1,7 +1,7 @@
 // Flusso di cassa: quanto entra ed esce davvero dai conti, mese per mese, e previsione dei mesi seguenti.
 // I "conti" sono i conti correnti e simili. Carte, finanziamenti e debiti come un prestito rotativo stanno fuori:
 // una spesa con la carta esce dai conti solo quando paghi la carta, una rata esce intera (capitale e interessi).
-import { addDays, addMonths, cents, dateInMonth, daysBetween, fromCents, lastDayOfMonth, rootCategory, ym } from './calc.js'
+import { addDays, addMonths, balancesAt, cents, dateInMonth, daysBetween, fromCents, lastDayOfMonth, rootCategory, ym } from './calc.js'
 
 const endOf = (m) => dateInMonth(m, 31)
 const day = (iso) => Number(iso.slice(8, 10))
@@ -407,7 +407,53 @@ export function cashflow({ accounts, categories, txs, today, ahead = 6, back = 3
     // Dove finisce la differenza: quanto pesa sui conti (fido) e quanto resta sulle carte con gli interessi.
     onAccounts: fromCents(left - spend + onCards),
     onCards: fromCents(-onCards),
+    // Per restare dentro il fido: quanto resta, pagati debiti e carte con interessi, per le spese dal conto e con le carte a saldo.
+    revolving: fromCents(revolvingPay),
+    budget: fromCents(left - revolvingPay),
+    paceHit: fromCents(cents(pace.cash) + pace.cards.filter((c) => c.saldo).reduce((t, c) => t + cents(c.monthly), 0)),
   }
+
+  // Prossimi movimenti sul conto, con il disponibile (saldo più fido) dopo ognuno.
+  const margin0 = (todayBal ?? 0) - limit
+  let running = margin0
+  const items = expected.map((it) => {
+    running += it.dir === 'in' ? cents(it.amount) : -cents(it.amount)
+    return { ...it, label: ctxNames(it), after: fromCents(running) }
+  })
+
+  // Quanto si può ancora spendere senza superare il fido: per ogni giorno, il minimo del disponibile da lì in poi
+  // (una spesa fatta oggi pesa su tutti i giorni seguenti).
+  const future = series.filter((p) => p.date >= today)
+  const env = new Array(future.length)
+  for (let i = future.length - 1, m = Infinity; i >= 0; i--) { m = Math.min(m, cents(future[i].value) - limit); env[i] = m }
+  const envAt = (d) => env[Math.max(0, future.findIndex((p) => p.date === d))]
+  const debitDates = [...new Set(expected.filter((it) => it.source === 'carta').map((it) => it.date))].slice(0, 2)
+  const ends = debitDates.length ? debitDates : [endOf(cur), endOf(addMonths(cur, 1))]
+  const windows = ends.map((d, i) => ({ from: addDays(i ? ends[i - 1] : today, 1), until: d, amount: fromCents(envAt(d) - (i ? Math.max(0, envAt(ends[i - 1])) : 0)) }))
+  const steps = []
+  future.forEach((p, i) => {
+    if (p.date > ends[0]) return
+    if (!steps.length || env[i] !== cents(steps[steps.length - 1].amount)) steps.push({ from: p.date, amount: fromCents(env[i]) })
+  })
+  const shortAt = future.findIndex((p) => cents(p.value) < limit)
+  const budget = {
+    available: fromCents(margin0),
+    windows,
+    steps,
+    // Se gli impegni già certi da soli superano il fido: da quando e di quanto.
+    short: shortAt < 0 ? null : { date: future[shortAt].date, amount: fromCents(-Math.min(...future.map((p) => cents(p.value) - limit))) },
+  }
+
+  // Carte: debito di oggi, ritmo di spesa e prossimo addebito sul conto.
+  const balToday = balancesAt(accounts, txs, today)
+  const cards = accounts.filter((a) => a.kind === 'carta_revolv' && !a.archived).map((a) => ({
+    id: a.id,
+    name: a.name,
+    saldo: isSaldoCard(a),
+    debt: fromCents(-(balToday.get(a.id) || 0)),
+    monthly: pace.cards.find((c) => c.id === a.id)?.monthly || 0,
+    next: items.filter((it) => it.group === 'carte' && it.accountId === a.id).slice(0, 2),
+  }))
 
   // Quanto hai speso davvero nei mesi passati, su conti e carte (senza gli interessi delle rate).
   const trend = []
@@ -432,6 +478,9 @@ export function cashflow({ accounts, categories, txs, today, ahead = 6, back = 3
     pace,
     typical,
     trend,
+    items,
+    budget,
+    cards,
     saldoCards: accounts.filter(isSaldoCard).map((a) => ({ id: a.id, name: a.name, day: a.instalment_day || 15, plan: Number(a.plan_amount) || 0, planUntil: a.plan_until || null, fee: Number(a.statement_fee) || 0 })),
     recurring: recurringPatterns(ctx).map((p) => ({ ...p, label: ctxNames(p) })),
     loans: accounts.filter(isAutoLoan).map((a) => ({ id: a.id, name: a.name, amount: Number(a.instalment), day: a.instalment_day })),
