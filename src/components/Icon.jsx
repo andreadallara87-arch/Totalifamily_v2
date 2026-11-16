@@ -36,6 +36,7 @@ const P = {
   spark: <path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z" />,
   pie: <><path d="M11 4a8 8 0 1 0 9 9h-9z" /><path d="M14 3.2A8 8 0 0 1 20.8 10H14z" /></>,
   arrow: <path d="M5 12h14M13 6l6 6-6 6" />,
+  trend: <><path d="M3 3v18h18" /><path d="M7 15l4-4 3 3 5-6" /></>,
 }
 
 export default function Icon({ name, size, style, className = '' }) {

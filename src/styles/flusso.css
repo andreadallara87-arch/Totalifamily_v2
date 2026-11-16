@@ -1,0 +1,141 @@
+/* Pagina "Flusso di cassa": quanto si può ancora spendere restando dentro il fido,
+   cosa passerà la carta, i prossimi movimenti sul conto e com'è andata mese per mese. */
+.fl-hero { padding: 28px; display: flex; flex-direction: column; gap: 18px; }
+.fl-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px 28px; flex-wrap: wrap; }
+.fl-main { flex: 1 1 340px; min-width: 0; }
+.fl-big { display: block; font-size: 60px; line-height: 68px; font-weight: 700; letter-spacing: -0.03em; white-space: nowrap; margin: 2px 0 6px; }
+.fl-big.warn { color: var(--warn); }
+.fl-lead { font-size: 15px; line-height: 22px; color: var(--mute); max-width: 46ch; }
+.fl-side { flex: 0 1 440px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.fl-fact { background: var(--soft); border-radius: 18px; padding: 12px 14px; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.fl-fact span { font-size: 13px; color: var(--mute); }
+.fl-fact b { font-size: 24px; line-height: 30px; font-weight: 700; letter-spacing: -0.01em; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.fl-fact small { font-size: 12px; line-height: 16px; color: var(--mute); }
+.fl-alert { background: var(--soft); align-items: flex-start; line-height: 19px; font-size: 14px; }
+.fl-alert .ic { margin-top: 1px; flex: none; }
+.fl-alert.plain { color: var(--ink); }
+.fl-alert.plain .ic { color: var(--acct); }
+
+.g-fl { grid-template-columns: minmax(0, 400px) minmax(0, 1fr); align-items: start; }
+.fl-sec { display: flex; align-items: center; justify-content: space-between; gap: 4px 12px; flex-wrap: wrap; margin-bottom: 10px; }
+
+/* Cosa ti passerà la carta */
+.fl-card { padding: 10px 0 14px; border-top: 1px solid var(--line); }
+.fl-card:first-of-type { border-top: 0; padding-top: 6px; }
+.fl-card:last-child { padding-bottom: 0; }
+.fl-card > .row > .txt .sb { white-space: normal; }
+.fl-due { background: var(--soft); border-radius: 16px; padding: 10px 14px 11px; margin-top: 8px; }
+.fl-due-h { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.fl-due-h > span { font-size: 14px; font-weight: 600; }
+.fl-due-h b { font-size: 20px; line-height: 26px; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.fl-due-h > span small { display: block; font-size: 12px; font-weight: 500; color: var(--mute); }
+.fl-due .sb { margin-top: 4px; }
+.fl-res { margin-top: 6px; font-size: 14px; line-height: 19px; font-weight: 600; }
+.fl-res.up { color: var(--warn); }
+.fl-res.down { color: var(--pos); }
+.fl-due .fl-tag { margin-top: 6px; }
+.fl-acts { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 14px; margin-top: 8px; }
+.fl-acts .fl-tag { margin: 0; display: inline-flex; align-items: center; gap: 4px; }
+.fl-tag.ok { color: var(--pos); }
+.fl-acts .lnk:disabled { opacity: .5; }
+.fl-edit { width: 36px; height: 36px; margin-left: auto; box-shadow: none; color: var(--mute); }
+.fl-edit:hover { color: var(--ink); }
+.fl-fine { margin-top: 10px; }
+/* Importo che si può cambiare: meno, cifra, più. */
+.fl-pay { display: flex; align-items: center; gap: 6px; flex: none; }
+.fl-pay button { width: 36px; height: 36px; border-radius: 50%; flex: none; display: flex; align-items: center; justify-content: center; font-size: 20px; line-height: 1; font-weight: 600; color: var(--ink); background: var(--soft2); }
+.fl-pay button:hover { background: rgba(var(--rgb), .2); }
+.fl-pay button:disabled { opacity: .4; }
+.fl-pay button:focus-visible { outline: 2px solid var(--acc); outline-offset: 1px; }
+.fl-pay label { display: flex; align-items: baseline; gap: 4px; height: 40px; padding: 0 12px; border-radius: 14px; border: 1px solid var(--line); background: var(--cardsolid); font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.fl-pay label:focus-within { border-color: rgba(var(--rgb), .7); box-shadow: 0 0 0 3px rgba(var(--rgb), .18); }
+.fl-pay input { min-width: 0; height: 38px; border: 0; outline: 0; padding: 0; background: transparent; color: inherit; font: inherit; text-align: right; }
+
+/* Prossimi movimenti sul conto */
+.fl-mov { min-height: 60px; padding: 6px 0; border-top: 1px solid var(--line); }
+.fl-mov.today { border-top: 0; }
+.fl-mov .d { flex: none; width: 46px; font-size: 13px; font-weight: 600; color: var(--mute); }
+.fl-mov.today .d { color: var(--ink); }
+.fl-mov > .txt { flex: 1; }
+.fl-amt { flex: none; font-size: 15px; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.fl-mov > .txt .sb { white-space: normal; }
+.fl-av { flex: none; width: 112px; display: flex; flex-direction: column; align-items: flex-end; gap: 4px; padding-left: 12px; border-left: 1px solid var(--line); }
+.fl-av b { font-size: 15px; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.fl-track { display: block; width: 100%; height: 4px; border-radius: 2px; background: var(--soft2); overflow: hidden; }
+.fl-track i { display: block; height: 100%; border-radius: 2px; background: var(--acct); }
+.fl-mov.tight .fl-av b { color: var(--acct); }
+.fl-tag { font-size: 11px; font-weight: 600; color: var(--mute); white-space: nowrap; }
+.fl-more { display: block; margin: 12px auto 0; padding: 6px 10px; }
+
+/* Com'è andata, mese per mese */
+.fl-legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 12px; color: var(--mute); }
+.fl-legend span { display: inline-flex; align-items: center; gap: 6px; }
+.fl-legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; }
+.fl-legend i.in { background: var(--pos); }
+.fl-legend i.out { background: var(--warn); }
+.fl-past { display: grid; grid-template-columns: 300px minmax(0, 1fr); grid-template-rows: auto 1fr; grid-template-areas: "cols det" "why det"; column-gap: 28px; align-items: start; }
+.fl-past > .flm { grid-area: cols; }
+.fl-past > .fl-det { grid-area: det; border-top: 0; margin-top: 0; padding-top: 0; }
+.fl-past > .fl-why { grid-area: why; }
+
+.flm { display: flex; gap: 6px; height: 176px; overflow-x: auto; scrollbar-width: none; margin: 0 -6px; padding: 0 6px; }
+.flm::-webkit-scrollbar { display: none; }
+.flm-col { flex: 1 0 48px; max-width: 92px; display: flex; flex-direction: column; align-items: center; gap: 5px; border-radius: 14px; padding: 6px 2px; }
+.flm-col:hover { background: var(--soft); }
+.flm-col.on { background: rgba(var(--rgb), .12); }
+.flm-net { font-size: 11.5px; line-height: 14px; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.flm-net.neg { color: var(--warn); }
+.flm-net.pos { color: var(--pos); }
+.flm-bars { flex: 1; width: 100%; max-width: 38px; display: flex; align-items: flex-end; gap: 3px; }
+.flm-bars i { flex: 1; display: block; border-radius: 6px 6px 3px 3px; min-height: 2px; }
+.flm-bars i.in { background: var(--pos); }
+.flm-bars i.out { background: var(--warn); }
+.flm-l { font-size: 12px; line-height: 14px; color: var(--ink); font-weight: 600; }
+.flm-s { font-size: 10.5px; line-height: 12px; color: var(--mute); min-height: 12px; }
+
+.fl-det { border-top: 1px solid var(--line); margin-top: 14px; padding-top: 14px; }
+.fl-dhead { display: flex; align-items: center; gap: 10px; }
+.fl-dhead .h { display: inline-flex; align-items: center; gap: 2px; }
+.badge.plain { background: var(--soft2); color: var(--mute); }
+.fl-sum { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-top: 14px; }
+.fl-sum > div { background: var(--soft); border-radius: 16px; padding: 10px 12px; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.fl-sum span { font-size: 12px; color: var(--mute); }
+.fl-sum b { font-size: 17px; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fl-det .lbl { font-size: 12px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--mute); margin: 18px 0 4px; }
+.fl-row { min-height: 58px; padding: 4px 0; }
+.fl-row > .txt { flex: 1; }
+.fl-row > .txt .sb { white-space: normal; }
+.fl-row .am { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
+.fl-why { margin-top: 16px; background: var(--soft); border-radius: 16px; padding: 12px 14px; font-size: 13px; line-height: 19px; }
+.fl-why b { display: block; font-size: 13px; margin-bottom: 2px; }
+.fl-why p { margin: 0; color: var(--mute); }
+
+@media (max-width: 1180px) {
+  .g-fl { grid-template-columns: minmax(0, 1fr); }
+  .fl-past { grid-template-columns: minmax(0, 1fr); grid-template-rows: none; grid-template-areas: "cols" "det" "why"; }
+  .fl-past > .fl-det { border-top: 1px solid var(--line); margin-top: 14px; padding-top: 14px; }
+}
+@media (max-width: 860px) {
+  .fl-hero { padding: 18px 17px; gap: 14px; }
+  .fl-big { font-size: 46px; line-height: 52px; }
+  .fl-side { flex-basis: 100%; }
+  .fl-fact b { font-size: 20px; line-height: 26px; }
+  .flm { height: 160px; }
+  .fl-sum b { font-size: 15px; }
+  .fl-mov { display: grid; grid-template-columns: 44px minmax(0, 1fr) 104px; gap: 1px 10px; align-items: start; min-height: 0; padding: 10px 0; }
+  .fl-mov > .chip { display: none; }
+  .fl-mov > .txt { display: contents; }
+  .fl-mov .d { grid-column: 1; grid-row: 1; width: auto; line-height: 19px; }
+  .fl-mov > .txt .nm { grid-column: 2; grid-row: 1; white-space: normal; }
+  .fl-mov .fl-amt { grid-column: 2; grid-row: 2; justify-self: start; font-size: 14px; line-height: 20px; }
+  .fl-mov > .txt .sb { grid-column: 2; grid-row: 3; }
+  .fl-av { grid-column: 3; grid-row: 1 / span 3; width: auto; padding-left: 10px; align-self: stretch; }
+}
+
+/* Scheda con i dati di una carta (CardSettings). */
+.cs-l { display: flex; flex-direction: column; gap: 1px; font-size: 15px; font-weight: 600; min-width: 0; }
+.cs-l small { font-size: 12px; font-weight: 400; color: var(--mute); }
+.cs-day input { width: 64px; text-align: center; }
+.cs-month { height: 44px; border-radius: 14px; border: 1px solid var(--line); background: var(--soft); color: var(--ink); padding: 0 12px; font: inherit; font-size: 15px; outline: none; }
+.cs-month:focus { border-color: rgba(var(--rgb), .7); box-shadow: 0 0 0 3px rgba(var(--rgb), .18); }
+.ce .lbl.cs-sec { margin: 6px 0 -6px; }

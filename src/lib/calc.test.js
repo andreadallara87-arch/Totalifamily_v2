@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { balancesAt, dailySeries, nextInstalmentDate, upcoming, overdraftRisk, loanEnd, spendingByCategory, addMonths, dateInMonth } from './calc.js'
+import { balancesAt, dailySeries, nextInstalmentDate, upcoming, loanEnd, spendingByCategory, addMonths, dateInMonth } from './calc.js'
 
 const acc = [
   { id: 'c', kind: 'conto', initial_balance: -100, overdraft: 1000, start_date: '2026-01-01' },
@@ -34,8 +34,6 @@ test('date di rata e fine mese', () => {
 test('impegni attesi e rischio fido', () => {
   const items = upcoming({ accounts: acc, txs, today: '2026-11-16' })
   assert.deepEqual(items.map((i) => i.date), ['2026-11-27', '2026-11-30'])
-  const risk = overdraftRisk(acc[0], -900, [{ date: '2026-11-20', kind: 'spesa', amount: 300, account_id: 'c' }])
-  assert.equal(risk.over, 200)
 })
 
 test('fine stimata di un finanziamento', () => {

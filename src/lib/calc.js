@@ -95,18 +95,6 @@ export function upcoming({ accounts, txs, today, days = 31 }) {
   return items.sort((x, y) => (x.date < y.date ? -1 : x.date > y.date ? 1 : 0))
 }
 
-/** Proiezione del saldo del conto principale sugli impegni attesi: primo giorno oltre il fido. */
-export function overdraftRisk(account, balanceToday, items) {
-  if (!account) return null
-  const limit = -cents(account.overdraft)
-  let bal = cents(balanceToday)
-  for (const it of items) {
-    bal += effect(it, account.id)
-    if (bal < limit) return { date: it.date, over: fromCents(limit - bal), item: it }
-  }
-  return null
-}
-
 /** Categoria principale (risale al genitore). */
 export function rootCategory(catsById, id) {
   let c = catsById.get(id)

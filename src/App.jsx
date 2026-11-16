@@ -3,10 +3,12 @@ import Icon from './components/Icon.jsx'
 import Home from './pages/Home.jsx'
 import Movimenti from './pages/Movimenti.jsx'
 import Categorie from './pages/Categorie.jsx'
+import Flusso from './pages/Flusso.jsx'
 import Conti from './pages/Conti.jsx'
 import Impostazioni, { AppearancePicker } from './pages/Impostazioni.jsx'
 import Login from './pages/Login.jsx'
 import NewMovement from './components/NewMovement.jsx'
+import CardSettings from './components/CardSettings.jsx'
 import { supabase } from './lib/supabase.js'
 import { loadAll, restoreTransaction, saveAppearance } from './lib/data.js'
 import { apply, readLocal } from './lib/appearance.js'
@@ -19,11 +21,12 @@ const PAGES = [
   { id: 'home', label: 'Home', icon: 'home' },
   { id: 'movimenti', label: 'Movimenti', icon: 'list' },
   { id: 'categorie', label: 'Categorie', icon: 'pie', desktopOnly: true },
+  { id: 'flusso', label: 'Flusso di cassa', icon: 'trend', desktopOnly: true },
   { id: 'conti', label: 'Conti e carte', short: 'Conti', icon: 'card' },
   { id: 'impostazioni', label: 'Impostazioni', icon: 'settings' },
 ]
 const TABS = PAGES.filter((p) => !p.desktopOnly)
-const TITLES = { movimenti: 'Movimenti', categorie: 'Spese per categoria', conti: 'Conti e carte', impostazioni: 'Impostazioni' }
+const TITLES = { movimenti: 'Movimenti', categorie: 'Spese per categoria', flusso: 'Flusso di cassa', conti: 'Conti e carte', impostazioni: 'Impostazioni' }
 
 const routeFromHash = () => {
   const id = window.location.hash.replace(/^#\/?/, '').split('?')[0]
@@ -45,6 +48,7 @@ export default function App() {
   const [sheet, setSheet] = useState(false)
   const [toast, setToast] = useState(null)
   const [entry, setEntry] = useState(null)
+  const [cardEd, setCardEd] = useState(null)
   const toastTimer = useRef(null)
   const today = todayRome()
 
@@ -110,6 +114,16 @@ export default function App() {
     closeNew()
     showToast(message)
   }
+  // Movimento salvato da una pagina (non dalla schermata del nuovo movimento): per esempio il rimborso di una carta.
+  const onTxSaved = (row, message, edited) => {
+    setData((d) => ({ ...d, txs: edited ? replaceTx(d.txs, row) : insertByDate(d.txs, row) }))
+    showToast(message)
+  }
+  const onAccountSaved = (acc) => {
+    setData((d) => ({ ...d, accounts: d.accounts.map((a) => (a.id === acc.id ? acc : a)) }))
+    setCardEd(null)
+    showToast(`Dati di ${acc.name} salvati.`)
+  }
   const onCategorySaved = (cat, created) => {
     setData((d) => ({ ...d, categories: upsertCategory(d.categories, cat) }))
     showToast(created ? `Categoria ${cat.name} creata.` : 'Categoria salvata.')
@@ -147,7 +161,8 @@ export default function App() {
   else if (!data) content = <section className="card pad"><div className="sb">Carico i tuoi dati…</div></section>
   else if (page === 'movimenti') content = <Movimenti data={data} today={today} onEdit={openEdit} />
   else if (page === 'categorie') content = <Categorie data={data} today={today} onEdit={openEdit} />
-  else if (page === 'conti') content = <Conti data={data} today={today} />
+  else if (page === 'flusso') content = <Flusso data={data} today={today} onTxSaved={onTxSaved} onDeleted={onDeleted} onEditCard={setCardEd} />
+  else if (page === 'conti') content = <Conti data={data} today={today} onEditCard={setCardEd} />
   else if (page === 'impostazioni') content = <Impostazioni data={data} session={session} look={look} setLook={setLook} onCategorySaved={onCategorySaved} onCategoryDeleted={onCategoryDeleted} />
   else content = <Home data={data} today={today} go={go} onNew={openNew} onEdit={openEdit} />
 
@@ -218,6 +233,7 @@ export default function App() {
         ))}
       </nav>
       {entry && data && <NewMovement key={entry.tx?.id || 'nuovo'} data={data} today={today} initialKind={entry.kind} tx={entry.tx} onClose={closeNew} onSaved={onSaved} onDeleted={onDeleted} onCategorySaved={onCategorySaved} />}
+      {cardEd && data && <CardSettings key={cardEd.id} account={cardEd} onClose={() => setCardEd(null)} onSaved={onAccountSaved} />}
       {toast && (
         <div className="toast" role="status">
           <span>{toast.text}</span>

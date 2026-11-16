@@ -4,7 +4,8 @@ import Money from '../components/Money.jsx'
 import Donut, { DONUT_COLORS } from '../components/Donut.jsx'
 import BalanceChart from '../components/BalanceChart.jsx'
 import CatChip from '../components/CatChip.jsx'
-import { addDays, addMonths, balancesAt, dailySeries, fromCents, lastDayOfMonth, loanEnd, overdraftRisk, rootCategory, spendingByCategory, upcoming, ym } from '../lib/calc.js'
+import { addDays, addMonths, balancesAt, dailySeries, fromCents, lastDayOfMonth, loanEnd, rootCategory, spendingByCategory, upcoming, ym } from '../lib/calc.js'
+import { cashflow } from '../lib/cashflow.js'
 import { euro, monthName, monthShortYear, relativeDay, dayMonth } from '../lib/format.js'
 import { accountSubtitle, accountVisual, kindVisual } from '../lib/visual.js'
 
@@ -31,7 +32,6 @@ export default function Home({ data, today, go, onNew, onEdit }) {
     const prevEnd = `${prevMonth}-${String(lastDayOfMonth(prevMonth)).padStart(2, '0')}`
     const startBal = main ? fromCents(balancesAt([main], txs, prevEnd).get(main.id)) : 0
     const items = upcoming({ accounts, txs, today })
-    const risk = overdraftRisk(main, mainBal, items)
     const day = Number(today.slice(8, 10))
     const spend = spendingByCategory(txs, catsById, `${month}-01`, today)
     const prevSpend = spendingByCategory(txs, catsById, `${prevMonth}-01`, `${prevMonth}-${String(Math.min(day, lastDayOfMonth(prevMonth))).padStart(2, '0')}`)
@@ -46,8 +46,10 @@ export default function Home({ data, today, go, onNew, onEdit }) {
     const prevFrom = `${prevMonth}-01`
     const interest = txs.filter((t) => t.kind === 'spesa' && t.date >= prevFrom && t.date <= prevEnd && accById.get(t.account_id)?.kind === 'finanziamento').reduce((s, t) => s + t.amount, 0)
     const wallets = accounts.filter((a) => a.kind !== 'finanziamento' && !a.archived)
-    return { catsById, accById, balance, main, mainBal, startBal, items, risk, spend, prevSpend, parts, loans, interest, prevMonth, wallets }
+    return { catsById, accById, balance, main, mainBal, startBal, items, spend, prevSpend, parts, loans, interest, prevMonth, wallets }
   }, [accounts, categories, txs, settings, today])
+  // Quanto si può ancora spendere restando dentro il fido, con gli impegni già noti (pagina "Flusso di cassa").
+  const flow = useMemo(() => cashflow({ accounts, categories, txs, today }).budget, [accounts, categories, txs, today])
 
   const p = PERIODS.find((x) => x.id === period)
   const series = useMemo(() => (m.main ? dailySeries(m.main, txs, addDays(today, -p.days), today) : []), [m.main, txs, today, p.days])
@@ -134,12 +136,15 @@ export default function Home({ data, today, go, onNew, onEdit }) {
               </Row>
             )
           })}
-          {m.risk && (
-            <div className="note c-rosso" style={{ marginTop: 8 }}>
-              <Icon name="alert" size={18} />
-              <span>Il {dayMonth(m.risk.date)} vai oltre il fido di circa {euro(m.risk.over, { decimals: false })}</span>
-            </div>
-          )}
+          <a className="row tap flow-link" href="#/flusso" onClick={(e) => { e.preventDefault(); go('flusso') }}>
+            <div className={`chip ${flow.short ? 'c-rosso' : 'c-blu'}`}><Icon name={flow.short ? 'alert' : 'trend'} /></div>
+            {flow.short ? (
+              <div className="txt"><div className="nm">Mancano {euro(flow.short.amount, { decimals: false })} per restare nel fido</div><div className="sb">con gli impegni già certi, dal {dayMonth(flow.short.date)}</div></div>
+            ) : (
+              <div className="txt"><div className="nm">Puoi ancora spendere {euro(Math.max(0, flow.windows[0].amount), { decimals: false })}</div><div className="sb">fino al {dayMonth(flow.windows[0].until)}, restando dentro il fido</div></div>
+            )}
+            <Icon name="right" size={18} style={{ color: 'var(--mute)', flex: 'none' }} />
+          </a>
         </section>
       </div>
 
