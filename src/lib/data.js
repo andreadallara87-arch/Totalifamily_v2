@@ -1,25 +1,32 @@
 import { supabase } from './supabase.js'
 
-const TX_FIELDS = 'id, kind, date, amount, account_id, to_account_id, category_id, note, planned'
+const TX_FIELDS = 'id, kind, date, amount, account_id, to_account_id, category_id, note, planned, recurring_id, to_check'
+const RULE_FIELDS = 'id, name, kind, account_id, to_account_id, category_id, interest_category_id, amount, calc, day, every_months, next_date, until_month, check_mode, active, sort_order, created_at'
 const CAT_FIELDS = 'id, parent_id, kind, name, icon, symbol, tint, budget, sort_order'
 const ACC_FIELDS = 'id, name, kind, start_date, initial_balance, overdraft, credit_limit, tan, instalment, instalment_day, auto_instalment, payment_account_id, last_instalment, statement_day, plan_amount, plan_until, statement_fee, excluded, archived, sort_order'
 
 const num = (v) => (v === null || v === undefined ? v : Number(v))
 const account = (a) => ({ ...a, initial_balance: num(a.initial_balance), overdraft: num(a.overdraft), credit_limit: num(a.credit_limit), tan: num(a.tan), instalment: num(a.instalment), plan_amount: num(a.plan_amount), statement_fee: num(a.statement_fee) })
 
+const rule = (r) => ({ ...r, amount: num(r.amount) })
+
 export async function loadAll() {
-  const [acc, cat, tx, set, imp] = await Promise.all([
+  // Prima inserisce i movimenti ricorrenti arrivati al loro giorno (se non l'ha già fatto il giro di ogni mattina).
+  const gen = await supabase.rpc('genera_ricorrenti')
+  if (gen.error) console.warn('Movimenti ricorrenti non inseriti', gen.error)
+  const [acc, cat, tx, set, imp, rec] = await Promise.all([
     supabase.from('accounts').select(ACC_FIELDS).order('sort_order'),
     supabase.from('categories').select(CAT_FIELDS).order('sort_order'),
     supabase.from('transactions').select(TX_FIELDS).order('date', { ascending: false }).order('created_at', { ascending: false }).range(0, 49999),
-    supabase.from('user_settings').select('theme, accent, main_account_id').maybeSingle(),
+    supabase.from('user_settings').select('theme, accent, main_account_id, ignored_suggestions').maybeSingle(),
     supabase.from('imports').select('id, source, imported_at, report').order('imported_at', { ascending: false }),
+    supabase.from('recurring').select(RULE_FIELDS).order('sort_order').order('created_at'),
   ])
-  for (const r of [acc, cat, tx, set, imp]) if (r.error) throw r.error
+  for (const r of [acc, cat, tx, set, imp, rec]) if (r.error) throw r.error
   const accounts = acc.data.map(account)
   const categories = cat.data.map((c) => ({ ...c, budget: num(c.budget) }))
   const txs = tx.data.map((t) => ({ ...t, amount: num(t.amount) }))
-  return { accounts, categories, txs, settings: set.data, imports: imp.data }
+  return { accounts, categories, txs, settings: set.data, imports: imp.data, recurring: rec.data.map(rule) }
 }
 
 /** Salva un nuovo movimento e restituisce la riga come la legge l'app. */
@@ -76,4 +83,26 @@ export async function saveAppearance(patch) {
   if (!user) return
   const { error } = await supabase.from('user_settings').upsert({ owner: user.id, ...patch, updated_at: new Date().toISOString() })
   if (error) console.warn('Impostazioni non salvate', error)
+}
+
+/** Crea una regola ricorrente (senza id) o salva le modifiche a una esistente. */
+export async function saveRecurring(id, row) {
+  const q = id ? supabase.from('recurring').update(row).eq('id', id) : supabase.from('recurring').insert(row)
+  const { data, error } = await q.select(RULE_FIELDS).single()
+  if (error) throw error
+  return rule(data)
+}
+
+/** Elimina una regola. I movimenti già inseriti restano. */
+export async function deleteRecurring(id) {
+  const { error } = await supabase.from('recurring').delete().eq('id', id)
+  if (error) throw error
+}
+
+/** Salva i suggerimenti di ricorrenti scartati. */
+export async function saveIgnored(list) {
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return
+  const { error } = await supabase.from('user_settings').upsert({ owner: user.id, ignored_suggestions: list, updated_at: new Date().toISOString() })
+  if (error) throw error
 }

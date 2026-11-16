@@ -198,10 +198,20 @@ export default function Impostazioni({ data, session, look, setLook, onCategoryS
   return (
     <div className="grid g-row2">
       <CategoriesCard data={data} onCategorySaved={onCategorySaved} onCategoryDeleted={onCategoryDeleted} />
-      <section className="card pad">
-        <h2 className="h" style={{ marginBottom: 8 }}>Aspetto</h2>
-        <AppearancePicker look={look} setLook={setLook} />
-      </section>
+      <div className="rc-col">
+        <section className="card pad">
+          <h2 className="h" style={{ marginBottom: 8 }}>Aspetto</h2>
+          <AppearancePicker look={look} setLook={setLook} />
+        </section>
+        <section className="card pad">
+          <h2 className="h">Movimenti ricorrenti</h2>
+          <a className="row tap" href="#/ricorrenti">
+            <div className="chip c-viola"><Icon name="rotate" /></div>
+            <div className="txt"><div className="nm">Rate, stipendio, spese fisse</div><div className="sb">{data.recurring.filter((r) => r.active).length} attivi, si inseriscono da soli</div></div>
+            <Icon name="right" size={18} style={{ color: 'var(--mute)', flex: 'none' }} />
+          </a>
+        </section>
+      </div>
       <section className="card pad">
         <h2 className="h">Accesso</h2>
         <div className="sb" style={{ marginBottom: 12 }}>{email}</div>

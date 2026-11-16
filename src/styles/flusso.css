@@ -139,3 +139,52 @@
 .cs-month { height: 44px; border-radius: 14px; border: 1px solid var(--line); background: var(--soft); color: var(--ink); padding: 0 12px; font: inherit; font-size: 15px; outline: none; }
 .cs-month:focus { border-color: rgba(var(--rgb), .7); box-shadow: 0 0 0 3px rgba(var(--rgb), .18); }
 .ce .lbl.cs-sec { margin: 6px 0 -6px; }
+
+/* Movimenti ricorrenti -------------------------------------------------------- */
+.rc-grid { grid-template-columns: minmax(0, 1fr) 380px; align-items: start; }
+.rc-col { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.rc-sum { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+.rc-big { display: block; font-size: 30px; line-height: 38px; font-weight: 700; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.rc-sumfoot { display: flex; align-items: center; gap: 12px; margin-top: 12px; }
+.rc-sumfoot .sb { flex: 1; min-width: 0; }
+.rc-gh { display: flex; align-items: baseline; gap: 10px; }
+.rc-gh .sb { margin-left: auto; white-space: nowrap; }
+.rc-gnote { margin: 2px 0 6px; }
+.rc-row { min-height: 64px; }
+.rc-row.off { opacity: .55; }
+.rc-amsub { font-weight: 400; font-size: 12px; }
+.rc-when { flex: none; width: 56px; text-align: right; font-size: 13px; color: var(--mute); font-variant-numeric: tabular-nums; }
+.badge.chk { background: color-mix(in srgb, var(--warn) 14%, transparent); color: var(--warn); }
+.rc-fbtns { display: flex; gap: 6px; margin-left: auto; flex: none; }
+.rc-how { margin: 8px 0 0; padding-left: 18px; display: flex; flex-direction: column; gap: 8px; font-size: 14px; line-height: 20px; color: var(--mute); }
+.rc-how b { color: var(--ink); font-weight: 600; }
+.rc-day { font-size: 12px; font-weight: 600; color: var(--mute); margin: 14px 0 0; text-transform: uppercase; letter-spacing: .04em; }
+.rc-nx { display: flex; align-items: center; gap: 10px; min-height: 34px; font-size: 14px; }
+.rc-nx.done { color: var(--mute); }
+.rc-nx .am { font-size: 14px; }
+.rc-dot { width: 8px; height: 8px; border-radius: 50%; flex: none; background: var(--acc); }
+.rc-nx.done .rc-dot { background: var(--track); }
+.rc-nxname { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rc-kinds { display: flex; }
+.rc-kinds .seg { flex: 1; height: 34px; }
+.rc-calc { border-radius: 16px; background: var(--soft); padding: 12px 14px; display: flex; flex-direction: column; gap: 6px; font-size: 14px; }
+.rc-calc .rc-tot { border-top: 1px solid var(--line); padding-top: 6px; }
+.rc-past { padding: 6px 0; border-top: 1px solid var(--line); font-size: 14px; }
+.rc-small { font-size: 11px; text-transform: none; letter-spacing: 0; font-weight: 400; }
+.ce input[type="date"].cs-month { min-width: 0; }
+.chk-card .row + .row { border-top: 1px solid var(--line); }
+.chk-acts { display: flex; gap: 6px; flex: none; margin-left: 8px; }
+@media (max-width: 1180px) { .rc-grid { grid-template-columns: minmax(0, 1fr) 340px; } }
+@media (max-width: 860px) {
+  .rc-grid { grid-template-columns: minmax(0, 1fr); }
+  .rc-col { gap: 12px; }
+  .rc-sum { grid-template-columns: 1fr 1fr; }
+  .rc-big { font-size: 24px; line-height: 30px; }
+  .rc-sumfoot { flex-direction: column; align-items: stretch; }
+  .rc-found { flex-wrap: wrap; padding-bottom: 10px; }
+  .rc-fbtns { width: 100%; padding-left: 52px; }
+  .rc-fbtns .btn { flex: 1; }
+  .chk-card .row { flex-wrap: wrap; padding-bottom: 10px; }
+  .chk-acts { width: 100%; margin-left: 0; padding-left: 52px; }
+  .chk-acts .btn { flex: 1; }
+}

@@ -6,6 +6,7 @@ import BalanceChart from '../components/BalanceChart.jsx'
 import CatChip from '../components/CatChip.jsx'
 import { addDays, addMonths, balancesAt, dailySeries, fromCents, lastDayOfMonth, loanEnd, rootCategory, spendingByCategory, upcoming, ym } from '../lib/calc.js'
 import { cashflow } from '../lib/cashflow.js'
+import { ruleItems } from '../lib/recurring.js'
 import { euro, monthName, monthShortYear, relativeDay, dayMonth } from '../lib/format.js'
 import { accountSubtitle, accountVisual, kindVisual } from '../lib/visual.js'
 
@@ -16,9 +17,9 @@ const PERIODS = [
   { id: 'anno', label: 'Anno', short: 'Anno', days: 365 },
 ]
 
-export default function Home({ data, today, go, onNew, onEdit }) {
+export default function Home({ data, today, go, onNew, onEdit, onConfirm }) {
   const [period, setPeriod] = useState('mese')
-  const { accounts, categories, txs, settings } = data
+  const { accounts, categories, txs, settings, recurring: rules } = data
 
   const m = useMemo(() => {
     const catsById = new Map(categories.map((c) => [c.id, c]))
@@ -31,7 +32,9 @@ export default function Home({ data, today, go, onNew, onEdit }) {
     const prevMonth = addMonths(month, -1)
     const prevEnd = `${prevMonth}-${String(lastDayOfMonth(prevMonth)).padStart(2, '0')}`
     const startBal = main ? fromCents(balancesAt([main], txs, prevEnd).get(main.id)) : 0
-    const items = upcoming({ accounts, txs, today })
+    // Già inseriti con data futura, rate automatiche e movimenti ricorrenti con importo fisso.
+    const items = [...upcoming({ accounts, txs, today }), ...ruleItems(rules, txs, today, addDays(today, 31))].sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0))
+    const checks = txs.filter((t) => t.to_check && t.date <= today)
     const day = Number(today.slice(8, 10))
     const spend = spendingByCategory(txs, catsById, `${month}-01`, today)
     const prevSpend = spendingByCategory(txs, catsById, `${prevMonth}-01`, `${prevMonth}-${String(Math.min(day, lastDayOfMonth(prevMonth))).padStart(2, '0')}`)
@@ -46,10 +49,10 @@ export default function Home({ data, today, go, onNew, onEdit }) {
     const prevFrom = `${prevMonth}-01`
     const interest = txs.filter((t) => t.kind === 'spesa' && t.date >= prevFrom && t.date <= prevEnd && accById.get(t.account_id)?.kind === 'finanziamento').reduce((s, t) => s + t.amount, 0)
     const wallets = accounts.filter((a) => a.kind !== 'finanziamento' && !a.archived)
-    return { catsById, accById, balance, main, mainBal, startBal, items, spend, prevSpend, parts, loans, interest, prevMonth, wallets }
-  }, [accounts, categories, txs, settings, today])
+    return { catsById, accById, balance, main, mainBal, startBal, items, checks, spend, prevSpend, parts, loans, interest, prevMonth, wallets }
+  }, [accounts, categories, txs, settings, today, rules])
   // Quanto si può ancora spendere restando dentro il fido, con gli impegni già noti (pagina "Flusso di cassa").
-  const flow = useMemo(() => cashflow({ accounts, categories, txs, today }).budget, [accounts, categories, txs, today])
+  const flow = useMemo(() => cashflow({ accounts, categories, txs, today, rules }).budget, [accounts, categories, txs, today, rules])
 
   const p = PERIODS.find((x) => x.id === period)
   const series = useMemo(() => (m.main ? dailySeries(m.main, txs, addDays(today, -p.days), today) : []), [m.main, txs, today, p.days])
@@ -60,7 +63,7 @@ export default function Home({ data, today, go, onNew, onEdit }) {
   const diff = m.mainBal - m.startBal
 
   const itemLabel = (it) => {
-    if (it.source === 'rata') return it.note
+    if (it.source === 'rata' || it.source === 'ricorrente') return it.note
     const c = it.category_id && m.catsById.get(it.category_id)
     if (it.kind === 'giroconto') return `Giroconto verso ${m.accById.get(it.to_account_id)?.name || 'conto'}`
     return it.note || c?.name || (it.kind === 'entrata' ? 'Entrata' : 'Spesa')
@@ -75,8 +78,33 @@ export default function Home({ data, today, go, onNew, onEdit }) {
   const spendDiff = m.prevSpend.total - m.spend.total
   const maxBar = Math.max(m.spend.total, m.prevSpend.total) || 1
 
+  const accName = (id) => m.accById.get(id)?.name || ''
   return (
     <>
+      {m.checks.length > 0 && (
+        <section className="card pad chk-card">
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 }}>
+            <h2 className="h">Da controllare</h2>
+            <span className="sb">movimenti ricorrenti appena inseriti</span>
+          </div>
+          {m.checks.map((t) => {
+            const cat = t.kind !== 'giroconto' && t.category_id && m.catsById.get(t.category_id)
+            const v = kindVisual(t.kind)
+            const s = t.kind === 'entrata' ? 1 : -1
+            return (
+              <div className="row" key={t.id}>
+                {cat ? <CatChip cat={cat} root={rootCategory(m.catsById, cat.id)} /> : <div className={`chip ${v.chip}`}><Icon name={v.icon} /></div>}
+                <div className="txt"><div className="nm">{t.note || cat?.name || 'Movimento'}</div><div className="sb">{relativeDay(t.date, today)} · {t.kind === 'giroconto' ? `${accName(t.account_id)} → ${accName(t.to_account_id)}` : accName(t.account_id)}</div></div>
+                <div className="am" style={s > 0 ? { color: 'var(--pos)' } : undefined}>{euro(s * t.amount, { sign: s > 0 })}</div>
+                <div className="chk-acts">
+                  <button type="button" className="btn small ghost" onClick={() => onEdit(t)}>Correggi</button>
+                  <button type="button" className="btn small" onClick={() => onConfirm(t)}><Icon name="check" size={16} />Va bene</button>
+                </div>
+              </div>
+            )
+          })}
+        </section>
+      )}
       <div className="grid g-hero">
         <section className="card hero">
           <div className="hero-in">
@@ -131,7 +159,7 @@ export default function Home({ data, today, go, onNew, onEdit }) {
             return (
               <Row className={`row${tx ? ' tap' : ''}`} key={it.key} {...(tx ? { type: 'button', onClick: () => onEdit(tx) } : {})}>
                 {cat ? <CatChip cat={cat} root={rootCategory(m.catsById, cat.id)} /> : <div className={`chip ${v.chip}`}><Icon name={v.icon} /></div>}
-                <div className="txt"><div className="nm">{itemLabel(it)}</div><div className="sb">{relativeDay(it.date, today)}{it.source === 'rata' ? ', rata automatica' : ''}</div></div>
+                <div className="txt"><div className="nm">{itemLabel(it)}</div><div className="sb">{relativeDay(it.date, today)}{it.source === 'rata' ? ', rata automatica' : it.source === 'ricorrente' ? ', ricorrente' : ''}</div></div>
                 <div className="am" style={s > 0 ? { color: 'var(--pos)' } : undefined}>{euro(s * it.amount, { decimals: false, sign: true })}</div>
               </Row>
             )
@@ -143,6 +171,11 @@ export default function Home({ data, today, go, onNew, onEdit }) {
             ) : (
               <div className="txt"><div className="nm">Puoi ancora spendere {euro(Math.max(0, flow.windows[0].amount), { decimals: false })}</div><div className="sb">fino al {dayMonth(flow.windows[0].until)}, restando dentro il fido</div></div>
             )}
+            <Icon name="right" size={18} style={{ color: 'var(--mute)', flex: 'none' }} />
+          </a>
+          <a className="row tap" href="#/ricorrenti" onClick={(e) => { e.preventDefault(); go('ricorrenti') }}>
+            <div className="chip c-viola"><Icon name="rotate" /></div>
+            <div className="txt"><div className="nm">Movimenti ricorrenti</div><div className="sb">{rules.filter((r) => r.active).length} attivi, si inseriscono da soli</div></div>
             <Icon name="right" size={18} style={{ color: 'var(--mute)', flex: 'none' }} />
           </a>
         </section>
