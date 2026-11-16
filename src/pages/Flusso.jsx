@@ -4,6 +4,7 @@ import Money from '../components/Money.jsx'
 import CatChip from '../components/CatChip.jsx'
 import { daysBetween, ym } from '../lib/calc.js'
 import { cashflow, spendingSplit } from '../lib/cashflow.js'
+import { addTransaction, deleteTransaction, updateTransaction } from '../lib/data.js'
 import { dayMonth, dayShort, euro, monthName, monthShort, monthYear } from '../lib/format.js'
 import { accountVisual } from '../lib/visual.js'
 
@@ -61,12 +62,15 @@ function AmountStepper({ value, onChange, label, step = 50 }) {
   )
 }
 
-export default function Flusso({ data, today }) {
+export default function Flusso({ data, today, onTxSaved, onDeleted, onEditCard }) {
   const { accounts, categories, txs } = data
   const [month, setMonth] = useState(ym(today))
   const [more, setMore] = useState(false)
-  // Rimborso scelto per le carte con interessi, mese per mese: { [idCarta]: { 'AAAA-MM': importo } }.
+  // Rimborso che stai provando per le carte con interessi, mese per mese: { [idCarta]: { 'AAAA-MM': importo } }.
+  // Finché non lo salvi resta solo qui: la pagina si ricalcola, ma tra i movimenti non cambia niente.
   const [pay, setPay] = useState({})
+  const [saving, setSaving] = useState(null)
+  const [payErr, setPayErr] = useState(null)
   const setPayment = (cardId, m, amount) => setPay((p) => {
     const mine = { ...p[cardId] }
     if (amount === null) delete mine[m]
@@ -74,26 +78,19 @@ export default function Flusso({ data, today }) {
     return { ...p, [cardId]: mine }
   })
   // Solo impegni già certi: nessuna spesa stimata. Il fido è un limite che non si supera.
-  const r = useMemo(() => cashflow({ accounts, categories, txs, today, ahead: 3, spending: 0, payments: pay }), [accounts, categories, txs, today, pay])
+  const r = useMemo(() => cashflow({ accounts, categories, txs, today, payments: pay }), [accounts, categories, txs, today, pay])
   const catsById = useMemo(() => new Map(categories.map((c) => [c.id, c])), [categories])
   const accById = useMemo(() => new Map(accounts.map((a) => [a.id, a])), [accounts])
 
   const b = r.budget
   const [w1, w2] = b.windows
-  const t = r.typical
   const saldoNames = r.cards.filter((c) => c.saldo).map((c) => c.name)
-  const revolving = r.cards.filter((c) => !c.saldo && (c.next.length || c.monthly > 0))
-  const revolvingNames = revolving.map((c) => c.name)
-  // Quanto hai messo sulle carte con interessi: l'ultimo estratto conto, se la carta ne ha uno, altrimenti gli ultimi 30 giorni.
-  const byStatement = revolving.length > 0 && revolving.every((c) => c.next[0]?.statement)
-  const revolvingSpend = revolving.reduce((s, c) => s + (byStatement ? c.next[0].statement.net : c.monthly), 0)
   const firstDue = r.cards.find((c) => c.saldo && c.next[0]?.card)?.next[0]
   const withCards = saldoNames.length ? `tra conto e ${list(saldoNames)}` : 'dal conto'
   const days = Math.max(1, daysBetween(today, w1.until))
   const cashNames = list(r.cashIds.map((id) => accById.get(id)?.name).filter(Boolean))
-  const over = t.paceHit - t.budget
 
-  const months = r.months.filter((m) => m.status !== 'previsto')
+  const months = r.months
   const sel = months.find((m) => m.month === month) || months[months.length - 1]
   const idx = months.indexOf(sel)
   const split = spendingSplit({ accounts, txs, today, month: sel.month })
@@ -121,7 +118,7 @@ export default function Flusso({ data, today }) {
   const itemSub = (it) => {
     if (it.card) return `${cardParts(it.card, true)} · finora`
     if (it.source === 'rata') return `capitale ${euro(it.capital)} · interessi ${euro(it.interest)}`
-    if (it.chosen) return 'importo scelto da te'
+    if (it.chosen) return 'importo che stai provando'
     if (it.source === 'ricorrente') return 'come l’ultima volta'
     return 'già inserito'
   }
@@ -137,6 +134,33 @@ export default function Flusso({ data, today }) {
     const verb = open ? ['salirebbe', 'scenderebbe', 'resterebbe'] : ['sale', 'scende', 'resta']
     const res = d > 0 ? `Rimborsando ${round(n.amount)} il debito ${verb[0]} di ${round(d)}` : d < 0 ? `Rimborsando ${round(n.amount)} il debito ${verb[1]} di ${round(-d)}` : `Rimborsando ${round(n.amount)} il debito ${verb[2]} uguale`
     return { head, res: `${res}${open ? `, meno quello che spendi ancora fino al ${dayMonth(st.to)}` : ''}.`, tone: d > 0 ? ' up' : d < 0 ? ' down' : '' }
+  }
+  // Salva il rimborso scelto come giroconto previsto verso la carta (o cambia quello già inserito).
+  async function savePayment(c, n) {
+    const key = `${c.id}|${n.date}`
+    if (saving) return
+    setSaving(key); setPayErr(null)
+    try {
+      const row = n.txId
+        ? await updateTransaction(n.txId, { amount: n.amount })
+        : await addTransaction({ kind: 'giroconto', date: n.date, amount: n.amount, account_id: n.fromId, to_account_id: c.id, category_id: null, note: '', planned: n.date > today })
+      setPayment(c.id, ym(n.date), null)
+      onTxSaved(row, `Rimborso ${c.name} di ${round(n.amount)} previsto per il ${dayMonth(n.date)}.`, !!n.txId)
+    } catch (e) {
+      setPayErr({ key, text: `Non sono riuscito a salvare: ${e?.message || 'errore sconosciuto'}. Riprova.` })
+    }
+    setSaving(null)
+  }
+  async function removePayment(c, n) {
+    const key = `${c.id}|${n.date}`
+    if (saving) return
+    setSaving(key); setPayErr(null)
+    try {
+      onDeleted(await deleteTransaction(n.txId))
+    } catch (e) {
+      setPayErr({ key, text: `Non sono riuscito a toglierlo: ${e?.message || 'errore sconosciuto'}. Riprova.` })
+    }
+    setSaving(null)
   }
   const lineSub = (l) => {
     const bits = []
@@ -204,79 +228,74 @@ export default function Flusso({ data, today }) {
       </section>
 
       <div className="grid g-fl">
-        <div className="fl-col">
-          <section className="card pad">
-            <h2 className="h">Cosa ti passerà la carta</h2>
-            {r.cards.map((c) => {
-              const a = accById.get(c.id)
-              const v = accountVisual(a)
-              return (
-                <div key={c.id} className="fl-card">
-                  <div className="row">
-                    <span className={`chip ${v.chip}`}><Icon name={v.icon} /></span>
-                    <div className="txt">
-                      <div className="nm">{c.name}</div>
-                      <div className="sb">
-                        {c.saldo ? 'paghi gli acquisti il mese dopo' : c.debt > 0 ? `debito di oggi ${euro(c.debt)}` : 'nessun debito oggi'}
-                        {!c.saldo && c.statementDay ? ` · estratto conto il ${c.statementDay} del mese` : ''}
-                      </div>
+        <section className="card pad">
+          <h2 className="h">Cosa ti passerà la carta</h2>
+          {r.cards.map((c) => {
+            const a = accById.get(c.id)
+            const v = accountVisual(a)
+            return (
+              <div key={c.id} className="fl-card">
+                <div className="row">
+                  <span className={`chip ${v.chip}`}><Icon name={v.icon} /></span>
+                  <div className="txt">
+                    <div className="nm">{c.name}</div>
+                    <div className="sb">
+                      {c.saldo ? 'paghi gli acquisti il mese dopo' : c.debt > 0 ? `debito di oggi ${euro(c.debt)}` : 'nessun debito oggi'}
+                      {!c.saldo && c.statementDay ? ` · estratto conto il ${c.statementDay} del mese` : ''}
                     </div>
                   </div>
-                  {(c.saldo || c.statementDay ? c.next : c.next.slice(0, 1)).map((n, i) => {
-                    const st = n.statement ? statementText(c, n) : null
-                    const editable = !c.saldo && n.source === 'ricorrente'
-                    return (
-                      <div key={n.date} className="fl-due">
-                        <div className="fl-due-h">
-                          <span>{dayMonth(n.date)}{editable && <small>quanto rimborsi</small>}</span>
-                          {editable ? <AmountStepper value={n.amount} onChange={(v) => setPayment(c.id, ym(n.date), v)} label={`Rimborso ${c.name} del ${dayMonth(n.date)}`} /> : <b>{euro(n.amount)}</b>}
-                        </div>
-                        {n.card ? (
-                          <div className="sb">
-                            {i === 0 ? `${cardParts(n.card, true)}. Cresce con ogni acquisto fino a fine ${mLabel(n.card.of)}.` : `${cardParts(n.card, false) || 'niente finora'}, più gli acquisti di ${mLabel(n.card.of)}.`}
-                          </div>
-                        ) : st ? (
-                          <>
-                            <div className="sb">{st.head}</div>
-                            {st.res && <div className={`fl-res${st.tone}`}>{st.res}</div>}
-                          </>
-                        ) : (
-                          <div className="sb">
-                            Negli ultimi {r.pace.days} giorni con {c.name} hai speso {whole(c.monthly)}: {c.monthly > n.amount ? 'più di quanto rimborsi, quindi il debito sale.' : 'meno di quanto rimborsi, quindi il debito scende.'}
-                          </div>
-                        )}
-                        {editable && (n.chosen && n.amount !== n.usual
-                          ? <button type="button" className="lnk fl-back" onClick={() => setPayment(c.id, ym(n.date), null)}>Torna a {round(n.usual)}, come l'ultima volta</button>
-                          : <div className="fl-tag">come l'ultima volta</div>)}
-                      </div>
-                    )
-                  })}
-                  {c.next.length === 0 && <div className="sb" style={{ marginTop: 6 }}>Nessun addebito previsto.</div>}
-                  {!c.saldo && c.statementDay && c.next.length > 0 && <div className="sb fl-fine">Gli interessi dell'estratto conto contano quando li inserisci come spesa su {c.name}.</div>}
+                  {onEditCard && <button type="button" className="hb fl-edit" aria-label={`Modifica i dati della carta ${c.name}`} title="Modifica i dati della carta" onClick={() => onEditCard(a)}><Icon name="pen" size={17} /></button>}
                 </div>
-              )
-            })}
-          </section>
-
-          <section className="card pad">
-            <h2 className="h">Un mese tipo</h2>
-            <div className="fl-eq">
-              <div><span>Entrano</span><b className="pos">{whole(t.in, true)}</b></div>
-              {t.debts.map((d) => <div key={d.label} className="sub"><span>{d.label}</span><b>{whole(-d.amount)}</b></div>)}
-              {revolving.length > 0 && <div className="sub"><span>Rimborso {list(revolvingNames)}</span><b>{whole(-t.revolving)}</b></div>}
-              <div className="key"><span>Restano per le spese, {withCards}</span><b>{whole(t.budget)}</b></div>
-              <div><span>Negli ultimi {r.pace.days} giorni, {withCards}, hai speso</span><b>{whole(t.paceHit)}</b></div>
-              <div className={over > 0 ? 'bad' : 'good'}><span>{over > 0 ? 'Speso in più di quanto resta' : 'Margine'}</span><b>{whole(Math.abs(over))}</b></div>
-            </div>
-            {revolvingSpend > 0 && (
-              <p className="sb fl-eqn">
-                Con {list(revolvingNames)}, {byStatement ? 'nell’ultimo estratto conto' : `negli ultimi ${r.pace.days} giorni`}, hai speso altri {whole(revolvingSpend)}: {revolvingSpend > t.revolving
-                  ? `${whole(t.revolving)} li copre il rimborso, ${whole(revolvingSpend - t.revolving)} restano come debito in più.`
-                  : `meno dei ${whole(t.revolving)} che rimborsi, quindi quel debito scende di ${whole(t.revolving - revolvingSpend)}.`}
-              </p>
-            )}
-          </section>
-        </div>
+                {(c.saldo || c.statementDay ? c.next : c.next.slice(0, 1)).map((n, i) => {
+                  const st = n.statement ? statementText(c, n) : null
+                  // Carta con interessi: il rimborso si può provare e poi salvare tra i movimenti previsti.
+                  const editable = !c.saldo && !!n.fromId
+                  const base = n.saved ?? n.usual
+                  const key = `${c.id}|${n.date}`
+                  const busy = saving === key
+                  return (
+                    <div key={n.date} className="fl-due">
+                      <div className="fl-due-h">
+                        <span>{dayMonth(n.date)}{editable && <small>quanto rimborsi</small>}</span>
+                        {editable ? <AmountStepper value={n.amount} onChange={(x) => { setPayErr(null); setPayment(c.id, ym(n.date), x === base ? null : x) }} label={`Rimborso ${c.name} del ${dayMonth(n.date)}`} /> : <b>{euro(n.amount)}</b>}
+                      </div>
+                      {n.card ? (
+                        <div className="sb">
+                          {i === 0 ? `${cardParts(n.card, true)}. Cresce con ogni acquisto fino a fine ${mLabel(n.card.of)}.` : `${cardParts(n.card, false) || 'niente finora'}, più gli acquisti di ${mLabel(n.card.of)}.`}
+                        </div>
+                      ) : st ? (
+                        <>
+                          <div className="sb">{st.head}</div>
+                          {st.res && <div className={`fl-res${st.tone}`}>{st.res}</div>}
+                        </>
+                      ) : (
+                        <div className="sb">
+                          Negli ultimi {r.paceDays} giorni con {c.name} hai speso {whole(c.monthly)}: {c.monthly > n.amount ? 'più di quanto rimborsi, quindi il debito sale.' : 'meno di quanto rimborsi, quindi il debito scende.'}
+                        </div>
+                      )}
+                      {editable && (n.chosen ? (
+                        <div className="fl-acts">
+                          <button type="button" className="btn small" disabled={busy} onClick={() => savePayment(c, n)}><Icon name="check" size={16} />{busy ? 'Salvo…' : `Salva ${round(n.amount)}`}</button>
+                          <button type="button" className="lnk" disabled={busy} onClick={() => { setPayErr(null); setPayment(c.id, ym(n.date), null) }}>Annulla, torna a {round(base)}</button>
+                        </div>
+                      ) : n.saved !== null ? (
+                        <div className="fl-acts">
+                          <span className="fl-tag ok"><Icon name="check" size={13} />salvato tra i movimenti previsti</span>
+                          <button type="button" className="lnk" disabled={busy} onClick={() => removePayment(c, n)}>{busy ? 'Tolgo…' : n.usual !== null ? `Togli, torna a ${round(n.usual)}` : 'Togli'}</button>
+                        </div>
+                      ) : (
+                        <div className="fl-tag">come l'ultima volta</div>
+                      ))}
+                      {payErr?.key === key && <div className="mv-hint err" role="alert" style={{ marginTop: 6, padding: 0 }}><Icon name="alert" size={15} /><span>{payErr.text}</span></div>}
+                    </div>
+                  )
+                })}
+                {c.next.length === 0 && <div className="sb" style={{ marginTop: 6 }}>Nessun addebito previsto.</div>}
+                {!c.saldo && c.statementDay && c.next.length > 0 && <div className="sb fl-fine">Gli interessi dell'estratto conto contano quando li inserisci come spesa su {c.name}.</div>}
+              </div>
+            )
+          })}
+        </section>
 
         <section className="card pad">
           <div className="fl-sec">

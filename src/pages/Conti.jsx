@@ -5,13 +5,16 @@ import { balancesAt, fromCents, loanEnd } from '../lib/calc.js'
 import { euro, monthShortYear } from '../lib/format.js'
 import { accountSubtitle, accountVisual } from '../lib/visual.js'
 
+// Per le carte: quando chiude l'estratto conto e quando addebita, se sono stati indicati.
+const cardDays = (a) => `${a.statement_day ? `, estratto il ${a.statement_day}` : ''}${a.instalment_day ? `, addebito il ${a.instalment_day}` : ''}`
+
 const GROUPS = [
   { kind: 'conto', title: 'Conti' },
   { kind: 'carta_revolv', title: 'Carte' },
   { kind: 'finanziamento', title: 'Finanziamenti' },
 ]
 
-export default function Conti({ data, today }) {
+export default function Conti({ data, today, onEditCard }) {
   const { accounts, txs } = data
   const bal = useMemo(() => balancesAt(accounts, txs, today), [accounts, txs, today])
   const b = (id) => fromCents(bal.get(id) || 0)
@@ -37,14 +40,17 @@ export default function Conti({ data, today }) {
                 const sub = a.kind === 'finanziamento'
                   ? `TAN ${String(a.tan ?? '–').replace('.', ',')}%${a.instalment ? `, rata ${euro(a.instalment, { decimals: false })}` : ''}`
                   : accountSubtitle(a, bb)
+                // Una carta si apre per cambiare chiusura dell'estratto conto, giorno di addebito, piano a rate e bollo.
+                const card = a.kind === 'carta_revolv' && onEditCard
+                const Row = card ? 'button' : 'div'
                 return (
-                  <div className="row" key={a.id}>
+                  <Row className={`row${card ? ' tap' : ''}`} key={a.id} {...(card ? { type: 'button', onClick: () => onEditCard(a), 'aria-label': `${a.name}: modifica i dati della carta` } : {})}>
                     <div className={`chip ${v.chip}`}><Icon name={v.icon} /></div>
-                    <div className="txt"><div className="nm">{a.name}</div><div className="sb">{sub}</div></div>
+                    <div className="txt"><div className="nm">{a.name}</div><div className="sb">{sub}{card ? cardDays(a) : ''}</div></div>
                     {end ? (
                       <div className="am"><Money value={bb} /><div className="sb" style={{ fontWeight: 400 }}>fino a {monthShortYear(end.end)}</div></div>
                     ) : <Money className="am" value={bb} />}
-                  </div>
+                  </Row>
                 )
               })}
             </section>

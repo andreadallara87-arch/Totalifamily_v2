@@ -40,6 +40,8 @@ input, select { font: inherit; color: inherit; }
 .row.tap { width: calc(100% + 16px); margin: 0 -8px; padding: 0 8px; border-radius: 14px; text-align: left; transition: background-color .15s; }
 .row.tap:hover { background: var(--soft); }
 .row.tap:focus-visible { outline: 2px solid var(--acc); outline-offset: -2px; }
+a.row.tap { color: inherit; text-decoration: none; }
+.flow-link { margin-top: 8px; min-height: 60px; }
 .row > .txt .nm, .row > .txt .sb { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .toast-act { flex: none; font-size: 14px; font-weight: 700; color: var(--acct); }
 .lnk { font-size: 13px; font-weight: 600; color: var(--acct); text-decoration: none; }

@@ -17,7 +17,6 @@
 .fl-alert.plain .ic { color: var(--acct); }
 
 .g-fl { grid-template-columns: minmax(0, 400px) minmax(0, 1fr); align-items: start; }
-.fl-col { display: grid; gap: 16px; min-width: 0; }
 .fl-sec { display: flex; align-items: center; justify-content: space-between; gap: 4px 12px; flex-wrap: wrap; margin-bottom: 10px; }
 
 /* Cosa ti passerà la carta */
@@ -35,7 +34,12 @@
 .fl-res.up { color: var(--warn); }
 .fl-res.down { color: var(--pos); }
 .fl-due .fl-tag { margin-top: 6px; }
-.fl-back { display: inline-block; margin-top: 6px; padding: 2px 0; }
+.fl-acts { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 14px; margin-top: 8px; }
+.fl-acts .fl-tag { margin: 0; display: inline-flex; align-items: center; gap: 4px; }
+.fl-tag.ok { color: var(--pos); }
+.fl-acts .lnk:disabled { opacity: .5; }
+.fl-edit { width: 36px; height: 36px; margin-left: auto; box-shadow: none; color: var(--mute); }
+.fl-edit:hover { color: var(--ink); }
 .fl-fine { margin-top: 10px; }
 /* Importo che si può cambiare: meno, cifra, più. */
 .fl-pay { display: flex; align-items: center; gap: 6px; flex: none; }
@@ -46,22 +50,6 @@
 .fl-pay label { display: flex; align-items: baseline; gap: 4px; height: 40px; padding: 0 12px; border-radius: 14px; border: 1px solid var(--line); background: var(--cardsolid); font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums; }
 .fl-pay label:focus-within { border-color: rgba(var(--rgb), .7); box-shadow: 0 0 0 3px rgba(var(--rgb), .18); }
 .fl-pay input { min-width: 0; height: 38px; border: 0; outline: 0; padding: 0; background: transparent; color: inherit; font: inherit; text-align: right; }
-
-/* Un mese tipo */
-.fl-eq { display: flex; flex-direction: column; margin-top: 6px; }
-.fl-eq > div { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 8px 0; border-top: 1px solid var(--line); font-size: 14px; line-height: 19px; }
-.fl-eq > div:first-child { border-top: 0; }
-.fl-eq b { font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
-.fl-eq .sub { padding: 5px 0 5px 12px; border-top: 0; color: var(--mute); font-size: 13px; }
-.fl-eq .sub b { font-weight: 600; color: var(--ink); }
-.fl-eq .key { margin: 6px -10px; padding: 10px; border-top: 0; border-radius: 14px; background: rgba(var(--rgb), .14); font-weight: 600; }
-.fl-eq .key + div { border-top: 0; }
-.fl-eq .key b { font-size: 17px; }
-.fl-eq .bad, .fl-eq .good { margin: 4px -10px 0; padding: 10px; border-top: 0; border-radius: 14px; font-weight: 600; }
-.fl-eq .bad { background: color-mix(in srgb, var(--warn) 11%, transparent); color: var(--warn); }
-.fl-eq .good { background: color-mix(in srgb, var(--pos) 11%, transparent); color: var(--pos); }
-.fl-eq .bad b, .fl-eq .good b { font-size: 17px; }
-.fl-eqn { margin: 10px 0 0; }
 
 /* Prossimi movimenti sul conto */
 .fl-mov { min-height: 60px; padding: 6px 0; border-top: 1px solid var(--line); }
@@ -143,3 +131,11 @@
   .fl-mov > .txt .sb { grid-column: 2; grid-row: 3; }
   .fl-av { grid-column: 3; grid-row: 1 / span 3; width: auto; padding-left: 10px; align-self: stretch; }
 }
+
+/* Scheda con i dati di una carta (CardSettings). */
+.cs-l { display: flex; flex-direction: column; gap: 1px; font-size: 15px; font-weight: 600; min-width: 0; }
+.cs-l small { font-size: 12px; font-weight: 400; color: var(--mute); }
+.cs-day input { width: 64px; text-align: center; }
+.cs-month { height: 44px; border-radius: 14px; border: 1px solid var(--line); background: var(--soft); color: var(--ink); padding: 0 12px; font: inherit; font-size: 15px; outline: none; }
+.cs-month:focus { border-color: rgba(var(--rgb), .7); box-shadow: 0 0 0 3px rgba(var(--rgb), .18); }
+.ce .lbl.cs-sec { margin: 6px 0 -6px; }
