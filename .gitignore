@@ -1,0 +1,10 @@
+node_modules
+dist
+dev-dist
+.env*
+!.env.example
+*.local
+# mai committare backup o dati personali
+*.json.bak
+backup*.json
+.DS_Store
