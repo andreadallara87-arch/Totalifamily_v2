@@ -30,6 +30,31 @@ const isAutoLoan = (a) => a && a.kind === 'finanziamento' && a.auto_instalment &
 export const isSaldoCard = (a) => !!a && a.kind === 'carta_revolv' && !a.archived && !(Number(a.tan) > 0)
 
 /**
+ * Estratto conto che si paga con l'addebito del giorno `date`, per una carta che chiude l'estratto
+ * il giorno `statement_day`: dal giorno dopo la chiusura precedente fino all'ultima chiusura prima dell'addebito.
+ */
+export function statementPeriod(card, date) {
+  const closing = Number(card?.statement_day)
+  if (!closing) return null
+  let m = ym(date)
+  if (dateInMonth(m, closing) > date) m = addMonths(m, -1)
+  return { from: addDays(dateInMonth(addMonths(m, -1), closing), 1), to: dateInMonth(m, closing) }
+}
+
+/** Quanto è stato messo sulla carta in un estratto conto: acquisti (interessi compresi, se inseriti) meno rimborsi. */
+function statementTotals(ctx, card, period) {
+  let spent = 0
+  let refunds = 0
+  for (const t of ctx.txs) {
+    if (t.account_id !== card.id || t.date < period.from || t.date > period.to || t.date > ctx.today) continue
+    if (t.kind === 'spesa') spent += cents(t.amount)
+    else if (t.kind === 'entrata') refunds += cents(t.amount)
+  }
+  const state = ctx.today < period.from ? 'futuro' : ctx.today <= period.to ? 'aperto' : 'chiuso'
+  return { ...period, spent: fromCents(spent), refunds: fromCents(refunds), net: fromCents(spent - refunds), state }
+}
+
+/**
  * Come un movimento cambia i soldi sui conti. null se non li tocca: spese con la carta, interessi
  * addebitati su un finanziamento, giroconti tra due conti.
  */
@@ -192,8 +217,11 @@ export function cardStatements(ctx, until, monthlyByCard = new Map()) {
   return out
 }
 
-/** Tutto quello che si prevede da domani a `until`: movimenti già inseriti, rate, carte a saldo, ricorrenti. Le spese stimate sono a parte. */
-export function expectedItems(ctx, until, monthlyByCard = new Map()) {
+/**
+ * Tutto quello che si prevede da domani a `until`: movimenti già inseriti, rate, carte a saldo, ricorrenti. Le spese stimate sono a parte.
+ * `payments`: rimborso scelto per una carta con interessi in un certo mese, `{ [idCarta]: { 'AAAA-MM': importo } }`, al posto di quello dell'ultima volta.
+ */
+export function expectedItems(ctx, until, monthlyByCard = new Map(), payments = null) {
   const { txs, today } = ctx
   const items = []
   const seen = new Set()
@@ -212,7 +240,9 @@ export function expectedItems(ctx, until, monthlyByCard = new Map()) {
       let date = dateInMonth(m, p.day)
       if (date <= today) date = addDays(today, 1)
       if (ym(date) !== m || date > until) continue
-      items.push({ date, dir: p.dir, group: p.group, line: p.line, rootId: p.rootId, accountId: p.accountId, amount: p.amount, source: 'ricorrente' })
+      const chosen = p.group === 'carte' ? payments?.[p.accountId]?.[m] : undefined
+      const it = { date, dir: p.dir, group: p.group, line: p.line, rootId: p.rootId, accountId: p.accountId, amount: p.amount, source: 'ricorrente' }
+      items.push(chosen === undefined ? it : { ...it, amount: Math.max(0, Number(chosen) || 0), usual: p.amount, chosen: true })
     }
   }
   return items.sort(sortByDate)
@@ -246,7 +276,7 @@ function addToMonth(mo, it, part) {
  * Restituisce i mesi (passati reali, quello in corso, quelli previsti), la serie giornaliera del saldo dei conti
  * e il primo momento in cui si prevede di andare oltre il fido.
  */
-export function cashflow({ accounts, categories, txs, today, ahead = 6, back = 3, spending = null }) {
+export function cashflow({ accounts, categories, txs, today, ahead = 6, back = 3, spending = null, payments = null }) {
   const ctx = context({ accounts, categories, txs, today })
   const cur = ym(today)
   const firstMonth = [addMonths(cur, -back), firstFullMonth(ctx)].sort()[1]
@@ -257,7 +287,7 @@ export function cashflow({ accounts, categories, txs, today, ahead = 6, back = 3
   const factor = spending === null ? 1 : pace.all > 0 ? spending / pace.all : 0
   const monthlyEst = spending !== null && !(pace.all > 0) ? spending : pace.cash * factor
   const monthlyByCard = new Map(pace.cards.map((c) => [c.id, c.monthly * factor]))
-  const expected = expectedItems(ctx, until, monthlyByCard)
+  const expected = expectedItems(ctx, until, monthlyByCard, payments)
   const interest = interestByMonth(ctx)
 
   // Spese stimate dai conti: il ritmo mensile diviso sui giorni che mancano, tolte le spese già inserite con data futura.
@@ -382,13 +412,16 @@ export function cashflow({ accounts, categories, txs, today, ahead = 6, back = 3
   const typ = out.find((m) => m.status === 'previsto') || out[out.length - 1]
   const debts = []
   let rate = 0
-  let revolvingPay = 0
+  // Carte con interessi: il prossimo rimborso (quello scelto, o quello dell'ultima volta).
+  const firstPay = new Map()
+  for (const it of expected) if (it.group === 'carte' && !isSaldoCard(ctx.accById.get(it.accountId)) && !firstPay.has(it.accountId)) firstPay.set(it.accountId, cents(it.amount))
+  const revolvingPay = [...firstPay.values()].reduce((t, c) => t + c, 0)
   for (const l of typ.lines) {
     if (l.group === 'rate') rate += cents(l.amount)
     else if (l.group === 'debiti') debts.push({ label: l.label, amount: l.amount })
     else if (l.group === 'carte' && l.card) {
       if (l.card.plan + l.card.fee > 0) debts.push({ label: `Piano a rate ${ctx.accById.get(l.accountId)?.name || ''} e bollo`.replace('  ', ' '), amount: fromCents(cents(l.card.plan) + cents(l.card.fee)) })
-    } else if (l.group === 'carte') revolvingPay += cents(l.amount)
+    }
   }
   if (rate) debts.unshift({ label: 'Rate dei finanziamenti', amount: fromCents(rate) })
   const debtTotal = debts.reduce((t, d) => t + cents(d.amount), 0)
@@ -452,7 +485,14 @@ export function cashflow({ accounts, categories, txs, today, ahead = 6, back = 3
     saldo: isSaldoCard(a),
     debt: fromCents(-(balToday.get(a.id) || 0)),
     monthly: pace.cards.find((c) => c.id === a.id)?.monthly || 0,
-    next: items.filter((it) => it.group === 'carte' && it.accountId === a.id).slice(0, 2),
+    statementDay: Number(a.statement_day) || null,
+    next: items.filter((it) => it.group === 'carte' && it.accountId === a.id).slice(0, 2).map((it) => {
+      const period = isSaldoCard(a) ? null : statementPeriod(a, it.date)
+      if (!period) return it
+      // Di quanto cambia il debito con questo rimborso: quello che hai messo sulla carta meno quello che rimborsi.
+      const statement = statementTotals(ctx, a, period)
+      return { ...it, statement, debtChange: fromCents(cents(statement.net) - cents(it.amount)) }
+    }),
   }))
 
   // Quanto hai speso davvero nei mesi passati, su conti e carte (senza gli interessi delle rate).

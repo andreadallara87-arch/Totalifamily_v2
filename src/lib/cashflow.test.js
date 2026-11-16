@@ -1,12 +1,12 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { cardStatements, cashAccountIds, cashflow, classify, instalments, paceEstimate, recurringPatterns, spendingSplit } from './cashflow.js'
+import { cardStatements, cashAccountIds, cashflow, classify, instalments, paceEstimate, recurringPatterns, spendingSplit, statementPeriod } from './cashflow.js'
 
 const accounts = [
   { id: 'c', name: 'Conto', kind: 'conto', start_date: '2026-09-01', initial_balance: 100, overdraft: 500 },
   { id: 's', name: 'Satispay', kind: 'conto', start_date: '2026-09-01', initial_balance: 0, overdraft: 0 },
   { id: 'r', name: 'Rotativo', kind: 'conto', start_date: '2026-09-01', initial_balance: -1000, overdraft: 0 },
-  { id: 'k', name: 'Carta', kind: 'carta_revolv', start_date: '2026-09-01', initial_balance: -200, overdraft: 0, tan: 14.9, payment_account_id: 'c' },
+  { id: 'k', name: 'Carta', kind: 'carta_revolv', start_date: '2026-09-01', initial_balance: -200, overdraft: 0, tan: 14.9, payment_account_id: 'c', statement_day: 5 },
   { id: 'n', name: 'Saldo', kind: 'carta_revolv', start_date: '2026-09-01', initial_balance: -500, overdraft: 0, tan: null, instalment_day: 15, payment_account_id: 'c', plan_amount: 88.26, plan_until: '2026-12', statement_fee: 2 },
   { id: 'l', name: 'Prestito', kind: 'finanziamento', start_date: '2026-09-01', initial_balance: -10000, instalment: 300, instalment_day: 5, auto_instalment: true, tan: 3, last_instalment: null },
 ]
@@ -157,6 +157,32 @@ test('dentro il fido: se gli impegni certi non ci stanno, dice da quando e quant
   assert.equal(r.budget.available, 310)
   assert.deepEqual(r.budget.short, { date: '2026-11-15', amount: 280.26 })
   assert.deepEqual(r.budget.windows.map((w) => w.amount), [-280.26, 1009.48])
+})
+
+test('estratto conto di una carta: dal giorno dopo la chiusura precedente all\'ultima chiusura prima dell\'addebito', () => {
+  assert.deepEqual(statementPeriod({ statement_day: 16 }, '2026-11-29'), { from: '2026-10-17', to: '2026-11-16' })
+  assert.deepEqual(statementPeriod({ statement_day: 16 }, '2026-11-10'), { from: '2026-09-17', to: '2026-10-16' })
+  assert.deepEqual(statementPeriod({ statement_day: 31 }, '2027-03-05'), { from: '2027-02-01', to: '2027-02-28' })
+  assert.equal(statementPeriod({}, '2026-11-29'), null)
+})
+
+test('carta con interessi: speso nell\'estratto conto e di quanto cambia il debito con il rimborso', () => {
+  const more = [...txs, tx('entrata', '2026-10-20', 20, 'k')]
+  const view = (r) => r.cards[0].next.map((n) => [n.date, n.amount, n.statement, n.debtChange])
+  const usual = cashflow({ accounts, categories, txs: more, today, ahead: 3, spending: 0 })
+  assert.deepEqual(view(usual), [
+    ['2026-11-15', 200, { from: '2026-10-06', to: '2026-11-05', spent: 50, refunds: 20, net: 30, state: 'chiuso' }, -170],
+    ['2026-12-15', 200, { from: '2026-11-06', to: '2026-12-05', spent: 0, refunds: 0, net: 0, state: 'aperto' }, -200],
+  ])
+  assert.equal(usual.cards[1].next[0].statement, undefined) // la carta a saldo non ha un rimborso da scegliere
+
+  // Rimborso scelto per novembre: cambia l'addebito, il disponibile e quanto resta, non il mese dopo.
+  const r = cashflow({ accounts, categories, txs: more, today, ahead: 3, spending: 0, payments: { k: { '2026-11': 300 } } })
+  assert.deepEqual(view(r).map((n) => [n[1], n[3]]), [[300, -270], [200, -200]])
+  assert.deepEqual([r.cards[0].next[0].usual, r.cards[0].next[0].chosen], [200, true])
+  assert.deepEqual(r.items.slice(0, 2).map((i) => [i.label, i.amount, i.after]), [['Carta Saldo', 390.26, 419.74], ['Carta Carta', 300, 119.74]])
+  assert.deepEqual(r.budget.windows.map((w) => w.amount), [119.74, 1289.74])
+  assert.deepEqual([r.typical.revolving, r.typical.budget], [300, 1309.74])
 })
 
 test('spese del mese divise per dove sono state pagate', () => {
