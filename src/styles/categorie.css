@@ -1,0 +1,57 @@
+/* Pagina "Categorie": spese ed entrate per categoria, mese per mese. */
+.chead { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
+.mnav { display: flex; align-items: center; gap: 4px; }
+.mnav .h { min-width: 150px; text-align: center; }
+.csum { display: flex; align-items: flex-end; gap: 32px; margin-top: 16px; }
+.ctot { flex: none; min-width: 240px; }
+.cbig { display: block; font-size: 44px; line-height: 52px; font-weight: 700; letter-spacing: -0.03em; white-space: nowrap; }
+
+.mbars { flex: 1; min-width: 0; display: flex; align-items: stretch; gap: 8px; height: 150px; }
+.mbars.small { height: 112px; flex: none; margin-bottom: 4px; }
+.mbar { flex: 1; min-width: 0; max-width: 96px; display: flex; flex-direction: column; align-items: center; gap: 6px; border-radius: 12px; padding: 4px 2px; }
+.mbar:hover { background: var(--soft); }
+.mbar .v { font-size: 11.5px; line-height: 14px; color: var(--mute); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.mbar .b { flex: 1; width: 100%; max-width: 40px; display: flex; align-items: flex-end; }
+.mbar .b i { display: block; width: 100%; border-radius: 8px 8px 4px 4px; background: var(--bar2); transition: height .25s; }
+.mbar .l { font-size: 12px; line-height: 14px; color: var(--mute); }
+.mbar.on .b i { background: var(--acc); box-shadow: 0 0 18px rgba(var(--rgb), calc(var(--lg) * .6)); }
+.mbar.on .v, .mbar.on .l { color: var(--ink); font-weight: 700; }
+
+.g-cat { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: start; }
+.crow .row.tap { min-height: 64px; padding-top: 8px; padding-bottom: 8px; align-items: center; }
+.crow .row > .txt, .csub > .txt { flex: 1; }
+.crow.on > .row.tap { background: rgba(var(--rgb), .1); }
+.cbar { height: 5px; border-radius: 3px; background: var(--track); overflow: hidden; margin: 6px 0 5px; max-width: 260px; }
+.cbar > i { display: block; height: 100%; border-radius: 3px; background: var(--acc); }
+.csub .cbar > i { background: var(--bar2); }
+.crow .am, .csub .am { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
+.delta { font-size: 12px; font-weight: 500; color: var(--mute); }
+.delta.good { color: var(--pos); }
+.delta.bad { color: var(--warn); }
+.cchev { color: var(--mute); flex: none; transition: transform .2s; }
+.cchev.up { transform: rotate(180deg); }
+
+.cdhead { display: flex; align-items: center; gap: 14px; margin-bottom: 8px; }
+.cdtot { font-size: 24px; font-weight: 700; letter-spacing: -0.02em; white-space: nowrap; }
+.cdet .lbl { display: flex; align-items: center; justify-content: space-between; font-size: 12px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--mute); margin: 18px 0 6px; }
+.cdet .lbl .lnk { text-transform: none; letter-spacing: 0; }
+.csub.on { background: rgba(var(--rgb), .12); }
+.csub { padding-top: 6px; padding-bottom: 6px; }
+.crow .row > .txt .sb, .csub > .txt .sb { white-space: normal; }
+.cmov { min-height: 50px; }
+.cmov .d { width: 52px; flex: none; font-size: 13px; color: var(--mute); font-variant-numeric: tabular-nums; }
+.cmov .txt { flex: 1; }
+
+@media (max-width: 1180px) {
+  .csum { flex-direction: column; align-items: stretch; gap: 18px; }
+  .csum .mbars { flex: none; }
+}
+@media (max-width: 860px) {
+  .cbig { font-size: 40px; line-height: 46px; }
+  .mbars { height: 130px; gap: 4px; }
+  .mbar .v { font-size: 10.5px; }
+  .crow .row.tap { gap: 10px; }
+  .crow.on { border-radius: 16px; background: var(--soft); margin: 4px -8px; padding: 0 8px 8px; }
+  .crow.on > .row.tap { background: none; }
+  .cdet .lbl:first-child { margin-top: 6px; }
+}

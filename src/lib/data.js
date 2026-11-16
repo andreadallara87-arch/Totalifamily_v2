@@ -26,6 +26,27 @@ export async function addTransaction(row) {
   return { ...data, amount: num(data.amount) }
 }
 
+/** Salva le modifiche a un movimento esistente. */
+export async function updateTransaction(id, row) {
+  const { data, error } = await supabase.from('transactions').update(row).eq('id', id).select(TX_FIELDS).single()
+  if (error) throw error
+  return { ...data, amount: num(data.amount) }
+}
+
+/** Elimina un movimento e restituisce la riga completa (anche i dati dell'import), per poterla ripristinare. */
+export async function deleteTransaction(id) {
+  const { data, error } = await supabase.from('transactions').delete().eq('id', id).select('*').single()
+  if (error) throw error
+  return data
+}
+
+/** Rimette una riga eliminata, identica a prima (stesso id, stessa data di creazione). */
+export async function restoreTransaction(full) {
+  const { data, error } = await supabase.from('transactions').insert(full).select(TX_FIELDS).single()
+  if (error) throw error
+  return { ...data, amount: num(data.amount) }
+}
+
 export async function saveAppearance(patch) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return
