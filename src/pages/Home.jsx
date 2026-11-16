@@ -3,7 +3,8 @@ import Icon from '../components/Icon.jsx'
 import Money from '../components/Money.jsx'
 import Donut, { DONUT_COLORS } from '../components/Donut.jsx'
 import BalanceChart from '../components/BalanceChart.jsx'
-import { addDays, addMonths, balancesAt, dailySeries, fromCents, lastDayOfMonth, loanEnd, overdraftRisk, spendingByCategory, upcoming, ym } from '../lib/calc.js'
+import CatChip from '../components/CatChip.jsx'
+import { addDays, addMonths, balancesAt, dailySeries, fromCents, lastDayOfMonth, loanEnd, overdraftRisk, rootCategory, spendingByCategory, upcoming, ym } from '../lib/calc.js'
 import { euro, monthName, monthShortYear, relativeDay, dayMonth } from '../lib/format.js'
 import { accountSubtitle, accountVisual, kindVisual } from '../lib/visual.js'
 
@@ -14,7 +15,7 @@ const PERIODS = [
   { id: 'anno', label: 'Anno', short: 'Anno', days: 365 },
 ]
 
-export default function Home({ data, today, go, notReady }) {
+export default function Home({ data, today, go, onNew }) {
   const [period, setPeriod] = useState('mese')
   const { accounts, categories, txs, settings } = data
 
@@ -107,9 +108,9 @@ export default function Home({ data, today, go, notReady }) {
             </div>
           </div>
           <div className="actions" style={{ display: 'flex', gap: 10 }}>
-            <button type="button" className="act c-rosso" onClick={notReady}><Icon name="down" />Spesa</button>
-            <button type="button" className="act c-verde" onClick={notReady}><Icon name="up" />Entrata</button>
-            <button type="button" className="act c-blu" onClick={notReady}><Icon name="swap" />Giroconto</button>
+            <button type="button" className="act c-rosso" onClick={() => onNew('spesa')}><Icon name="down" />Spesa</button>
+            <button type="button" className="act c-verde" onClick={() => onNew('entrata')}><Icon name="up" />Entrata</button>
+            <button type="button" className="act c-blu" onClick={() => onNew('giroconto')}><Icon name="swap" />Giroconto</button>
           </div>
         </section>
 
@@ -121,10 +122,11 @@ export default function Home({ data, today, go, notReady }) {
           {m.items.length === 0 && <div className="empty">Nessun movimento atteso</div>}
           {m.items.slice(0, 5).map((it) => {
             const v = it.source === 'rata' ? { icon: 'bank', chip: 'c-viola' } : kindVisual(it.kind)
+            const cat = it.kind !== 'giroconto' && it.category_id && m.catsById.get(it.category_id)
             const s = itemSign(it)
             return (
               <div className="row" key={it.key}>
-                <div className={`chip ${v.chip}`}><Icon name={v.icon} /></div>
+                {cat ? <CatChip cat={cat} root={rootCategory(m.catsById, cat.id)} /> : <div className={`chip ${v.chip}`}><Icon name={v.icon} /></div>}
                 <div className="txt"><div className="nm">{itemLabel(it)}</div><div className="sb">{relativeDay(it.date, today)}{it.source === 'rata' ? ', rata automatica' : ''}</div></div>
                 <div className="am" style={s > 0 ? { color: 'var(--pos)' } : undefined}>{euro(s * it.amount, { decimals: false, sign: true })}</div>
               </div>

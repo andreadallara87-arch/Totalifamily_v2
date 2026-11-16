@@ -1,8 +1,9 @@
 import { useMemo, useState } from 'react'
 import Icon from '../components/Icon.jsx'
+import CatChip from '../components/CatChip.jsx'
 import { addMonths, rootCategory, ym } from '../lib/calc.js'
 import { dayLong, euro, monthYear } from '../lib/format.js'
-import { categoryChip, kindVisual } from '../lib/visual.js'
+import { kindVisual } from '../lib/visual.js'
 
 const FILTERS = [
   { id: 'tutti', label: 'Tutti' },
@@ -73,14 +74,13 @@ export default function Movimenti({ data, today }) {
             const c = view.catsById.get(t.category_id)
             const root = rootCategory(view.catsById, t.category_id)
             const kv = kindVisual(t.kind)
-            const emoji = root && root.icon && root.icon !== '·' && root.icon !== '•' ? root.icon : null
             const acc = view.accById.get(t.account_id)?.name
             const title = t.kind === 'giroconto' ? `${acc} → ${view.accById.get(t.to_account_id)?.name}` : t.note || c?.name || (t.kind === 'entrata' ? 'Entrata' : 'Spesa')
             const sub = t.kind === 'giroconto' ? t.note || 'Giroconto' : [root && c && root.id !== c.id ? `${root.name} › ${c.name}` : c?.name, acc].filter(Boolean).join(' · ')
             const sign = t.kind === 'entrata' ? 1 : t.kind === 'spesa' ? -1 : 0
             return (
               <div className="row" key={t.id}>
-                <div className={`chip ${t.kind === 'spesa' ? categoryChip(root) : kv.chip}`}>{emoji && t.kind !== 'giroconto' ? <span aria-hidden="true">{emoji}</span> : <Icon name={kv.icon} />}</div>
+                {c && t.kind !== 'giroconto' ? <CatChip cat={c} root={root} /> : <div className={`chip ${kv.chip}`}><Icon name={kv.icon} /></div>}
                 <div className="txt"><div className="nm">{title}{t.planned ? <span className="badge">previsto</span> : null}</div><div className="sb">{sub}</div></div>
                 <div className="am" style={sign > 0 ? { color: 'var(--pos)' } : sign === 0 ? { color: 'var(--mute)' } : undefined}>{euro(sign === 0 ? t.amount : sign * t.amount, { sign: sign > 0 })}</div>
               </div>

@@ -5,10 +5,12 @@ import Movimenti from './pages/Movimenti.jsx'
 import Conti from './pages/Conti.jsx'
 import Impostazioni, { AppearancePicker } from './pages/Impostazioni.jsx'
 import Login from './pages/Login.jsx'
+import NewMovement from './components/NewMovement.jsx'
 import { supabase } from './lib/supabase.js'
 import { loadAll, saveAppearance } from './lib/data.js'
 import { apply, readLocal } from './lib/appearance.js'
 import { todayRome } from './lib/calc.js'
+import { insertByDate } from './lib/entry.js'
 import { dayLong } from './lib/format.js'
 
 const PAGES = [
@@ -38,6 +40,7 @@ export default function App() {
   const [look, setLookState] = useState(readLocal())
   const [sheet, setSheet] = useState(false)
   const [toast, setToast] = useState(null)
+  const [entry, setEntry] = useState(null)
   const toastTimer = useRef(null)
   const today = todayRome()
 
@@ -50,8 +53,11 @@ export default function App() {
       setSession(s)
     })
     const onHash = () => setPage(routeFromHash())
+    // Il tasto "indietro" del telefono chiude la schermata del nuovo movimento invece di uscire dall'app.
+    const onPop = () => setEntry(null)
     window.addEventListener('hashchange', onHash)
-    return () => { sub.subscription.unsubscribe(); window.removeEventListener('hashchange', onHash) }
+    window.addEventListener('popstate', onPop)
+    return () => { sub.subscription.unsubscribe(); window.removeEventListener('hashchange', onHash); window.removeEventListener('popstate', onPop) }
   }, [])
 
   const userId = session?.user?.id
@@ -77,10 +83,25 @@ export default function App() {
   }, [])
 
   const go = (id) => { window.location.hash = id === 'home' ? '/' : `/${id}`; setSheet(false); window.scrollTo(0, 0) }
-  const notReady = () => {
-    setToast("L'inserimento dei movimenti è il prossimo passo: lo decidiamo insieme.")
+  const showToast = (text) => {
+    setToast(text)
     clearTimeout(toastTimer.current)
     toastTimer.current = setTimeout(() => setToast(null), 3500)
+  }
+  const openNew = (kind = 'spesa') => {
+    if (!data || entry) return
+    setSheet(false)
+    setEntry(kind)
+    window.history.pushState({ nuovo: true }, '')
+  }
+  const closeNew = () => {
+    if (window.history.state?.nuovo) window.history.back()
+    else setEntry(null)
+  }
+  const onSaved = (row, message) => {
+    setData((d) => ({ ...d, txs: insertByDate(d.txs, row) }))
+    closeNew()
+    showToast(message)
   }
 
   if (session === undefined) return null
@@ -95,7 +116,7 @@ export default function App() {
   else if (page === 'movimenti') content = <Movimenti data={data} today={today} />
   else if (page === 'conti') content = <Conti data={data} today={today} />
   else if (page === 'impostazioni') content = <Impostazioni data={data} session={session} look={look} setLook={setLook} />
-  else content = <Home data={data} today={today} go={go} notReady={notReady} />
+  else content = <Home data={data} today={today} go={go} onNew={openNew} />
 
   return (
     <>
@@ -134,7 +155,7 @@ export default function App() {
                 {sheet && <div className="sheet"><AppearancePicker look={look} setLook={setLook} /></div>}
               </div>
             </div>
-            <button type="button" className="btn" style={{ height: 44, borderRadius: 22, padding: '0 20px 0 14px' }} onClick={notReady}><Icon name="plus" />Nuovo movimento</button>
+            <button type="button" className="btn" style={{ height: 44, borderRadius: 22, padding: '0 20px 0 14px' }} disabled={!data} onClick={() => openNew('spesa')}><Icon name="plus" />Nuovo movimento</button>
           </header>
 
           <header className="mtop">
@@ -158,11 +179,12 @@ export default function App() {
         {PAGES.slice(0, 2).map((p) => (
           <a key={p.id} className={`tab${page === p.id ? ' on' : ''}`} href={p.id === 'home' ? '#/' : `#/${p.id}`}><Icon name={p.icon} />{p.short || p.label}</a>
         ))}
-        <button type="button" className="fab" aria-label="Nuovo movimento" onClick={notReady}><Icon name="plus" size={24} style={{ strokeWidth: 2.4 }} /></button>
+        <button type="button" className="fab" aria-label="Nuovo movimento" disabled={!data} onClick={() => openNew('spesa')}><Icon name="plus" size={24} style={{ strokeWidth: 2.4 }} /></button>
         {PAGES.slice(2).map((p) => (
           <a key={p.id} className={`tab${page === p.id ? ' on' : ''}`} href={`#/${p.id}`}><Icon name={p.icon} />{p.short || p.label}</a>
         ))}
       </nav>
+      {entry && data && <NewMovement data={data} today={today} initialKind={entry} onClose={closeNew} onSaved={onSaved} />}
       {toast && <div className="toast" role="status">{toast}</div>}
     </>
   )
