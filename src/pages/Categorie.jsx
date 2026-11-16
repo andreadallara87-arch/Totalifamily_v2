@@ -200,7 +200,10 @@ export default function Categorie({ data, today, onEdit }) {
         <section className="card pad"><div className="empty">Nessun{kind === 'spesa' ? 'a spesa' : "'entrata"} in questo mese</div></section>
       ) : wide ? (
         <div className="grid g-cat">
-          <section className="card pad"><h2 className="h" style={{ marginBottom: 6 }}>Categorie</h2>{rows}</section>
+          <section className="card pad">
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}><h2 className="h">Categorie</h2><a className="lnk" href="#/impostazioni">Crea o modifica categorie</a></div>
+            {rows}
+          </section>
           {sel && (
             <section className="card pad">
               <div className="cdhead">
@@ -216,7 +219,7 @@ export default function Categorie({ data, today, onEdit }) {
           )}
         </div>
       ) : (
-        <section className="card pad">{rows}</section>
+        <section className="card pad">{rows}<a className="lnk" href="#/impostazioni" style={{ display: 'block', textAlign: 'center', marginTop: 14 }}>Crea o modifica categorie</a></section>
       )}
     </>
   )
