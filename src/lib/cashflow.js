@@ -4,6 +4,7 @@
 // I "conti" sono i conti correnti e simili. Carte, finanziamenti e debiti come un prestito rotativo stanno fuori:
 // una spesa con la carta esce dai conti solo quando paghi la carta, una rata esce intera (capitale e interessi).
 import { addDays, addMonths, balancesAt, cents, dateInMonth, daysBetween, fromCents, rootCategory, ym } from './calc.js'
+import { doneInMonth, occurrences } from './recurring.js'
 
 const endOf = (m) => dateInMonth(m, 31)
 const day = (iso) => Number(iso.slice(8, 10))
@@ -19,11 +20,11 @@ export function cashAccountIds(accounts, txs) {
   return new Set(accounts.filter((a) => a.kind === 'conto' && (cents(a.initial_balance) >= 0 || used.has(a.id))).map((a) => a.id))
 }
 
-function context({ accounts, categories, txs, today }) {
+function context({ accounts, categories, txs, today, rules = [] }) {
   const cash = cashAccountIds(accounts, txs)
   const accById = new Map(accounts.map((a) => [a.id, a]))
   const catsById = new Map(categories.map((c) => [c.id, c]))
-  return { accounts, txs, today, cash, accById, catsById }
+  return { accounts, txs, today, cash, accById, catsById, rules }
 }
 
 const outGroup = (acc) => (acc?.kind === 'finanziamento' ? 'rate' : acc?.kind === 'carta_revolv' ? 'carte' : 'debiti')
@@ -264,6 +265,17 @@ export function expectedItems(ctx, until, payments = null) {
       items.push(repayment(it, p, m, null))
     }
   }
+  // Movimenti ricorrenti con importo fisso che le previsioni qui sopra non coprono già (per esempio le spese fisse dai conti).
+  const known = new Set(patterns.map((p) => p.pattern))
+  for (const r of ctx.rules || []) {
+    if (!r.active || r.calc !== 'fisso') continue
+    const c = classify({ ...r, date: today }, ctx)
+    if (!c || (c.pattern && known.has(c.pattern))) continue
+    for (const date of occurrences(r, today, until)) {
+      if ((c.pattern && seen.has(`${c.pattern}|${ym(date)}`)) || doneInMonth(r, txs, date)) continue
+      items.push({ date, dir: c.dir, group: c.group, line: c.line, rootId: c.rootId || null, accountId: c.accountId || null, fromId: c.fromId || null, amount: Number(r.amount), source: 'ricorrente', ruleId: r.id, name: r.name })
+    }
+  }
   return items.sort(sortByDate)
 }
 
@@ -296,8 +308,8 @@ function addToMonth(mo, it, part) {
  * dopo ognuno, quanto si può ancora spendere restando dentro il fido e cosa addebiterà ogni carta.
  * `ahead`: per quanti mesi guardare avanti. `payments`: rimborsi delle carte che si stanno provando (vedi `expectedItems`).
  */
-export function cashflow({ accounts, categories, txs, today, ahead = 3, back = 3, payments = null }) {
-  const ctx = context({ accounts, categories, txs, today })
+export function cashflow({ accounts, categories, txs, today, ahead = 3, back = 3, payments = null, rules = [] }) {
+  const ctx = context({ accounts, categories, txs, today, rules })
   const cur = ym(today)
   const firstMonth = [addMonths(cur, -back), firstFullMonth(ctx)].sort()[1]
   const lastMonth = addMonths(cur, ahead)
@@ -396,7 +408,7 @@ export function cashflow({ accounts, categories, txs, today, ahead = 3, back = 3
   let running = margin0
   const items = expected.map((it) => {
     running += it.dir === 'in' ? cents(it.amount) : -cents(it.amount)
-    return { ...it, label: ctxNames(it), after: fromCents(running) }
+    return { ...it, label: it.name || ctxNames(it), after: fromCents(running) }
   })
 
   // Quanto si può ancora spendere senza superare il fido: per ogni giorno, il minimo del disponibile da lì in poi

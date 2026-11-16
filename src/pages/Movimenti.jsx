@@ -81,7 +81,7 @@ export default function Movimenti({ data, today, onEdit }) {
             return (
               <button type="button" className="row tap" key={t.id} onClick={() => onEdit(t)}>
                 {c && t.kind !== 'giroconto' ? <CatChip cat={c} root={root} /> : <div className={`chip ${kv.chip}`}><Icon name={kv.icon} /></div>}
-                <div className="txt"><div className="nm">{title}{t.planned ? <span className="badge">previsto</span> : null}</div><div className="sb">{sub}</div></div>
+                <div className="txt"><div className="nm">{title}{t.planned ? <span className="badge">previsto</span> : null}{t.to_check ? <span className="badge chk">da controllare</span> : t.recurring_id ? <span className="badge">ricorrente</span> : null}</div><div className="sb">{sub}</div></div>
                 <div className="am" style={sign > 0 ? { color: 'var(--pos)' } : sign === 0 ? { color: 'var(--mute)' } : undefined}>{euro(sign === 0 ? t.amount : sign * t.amount, { sign: sign > 0 })}</div>
               </button>
             )

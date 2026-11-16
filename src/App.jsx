@@ -4,13 +4,14 @@ import Home from './pages/Home.jsx'
 import Movimenti from './pages/Movimenti.jsx'
 import Categorie from './pages/Categorie.jsx'
 import Flusso from './pages/Flusso.jsx'
+import Ricorrenti from './pages/Ricorrenti.jsx'
 import Conti from './pages/Conti.jsx'
 import Impostazioni, { AppearancePicker } from './pages/Impostazioni.jsx'
 import Login from './pages/Login.jsx'
 import NewMovement from './components/NewMovement.jsx'
 import CardSettings from './components/CardSettings.jsx'
 import { supabase } from './lib/supabase.js'
-import { loadAll, restoreTransaction, saveAppearance } from './lib/data.js'
+import { loadAll, restoreTransaction, saveAppearance, saveRecurring, updateTransaction } from './lib/data.js'
 import { apply, readLocal } from './lib/appearance.js'
 import { todayRome } from './lib/calc.js'
 import { insertByDate, replaceTx } from './lib/entry.js'
@@ -22,11 +23,12 @@ const PAGES = [
   { id: 'movimenti', label: 'Movimenti', icon: 'list' },
   { id: 'categorie', label: 'Categorie', icon: 'pie', desktopOnly: true },
   { id: 'flusso', label: 'Flusso di cassa', icon: 'trend', desktopOnly: true },
+  { id: 'ricorrenti', label: 'Ricorrenti', icon: 'rotate', desktopOnly: true },
   { id: 'conti', label: 'Conti e carte', short: 'Conti', icon: 'card' },
   { id: 'impostazioni', label: 'Impostazioni', icon: 'settings' },
 ]
 const TABS = PAGES.filter((p) => !p.desktopOnly)
-const TITLES = { movimenti: 'Movimenti', categorie: 'Spese per categoria', flusso: 'Flusso di cassa', conti: 'Conti e carte', impostazioni: 'Impostazioni' }
+const TITLES = { movimenti: 'Movimenti', categorie: 'Spese per categoria', flusso: 'Flusso di cassa', ricorrenti: 'Movimenti ricorrenti', conti: 'Conti e carte', impostazioni: 'Impostazioni' }
 
 const routeFromHash = () => {
   const id = window.location.hash.replace(/^#\/?/, '').split('?')[0]
@@ -113,7 +115,37 @@ export default function App() {
     setData((d) => ({ ...d, txs: edited ? replaceTx(d.txs, row) : insertByDate(d.txs, row) }))
     closeNew()
     showToast(message)
+    // Un movimento ricorrente da controllare, corretto e salvato, vale come confermato.
+    if (edited && entry.tx.to_check) confirmCheck(row, true)
   }
+  // "Va bene" su un movimento ricorrente da controllare: non chiede più nulla e la regola ricorda l'importo.
+  const confirmCheck = async (tx, quiet = false) => {
+    try {
+      const row = await updateTransaction(tx.id, { to_check: false })
+      setData((d) => ({ ...d, txs: replaceTx(d.txs, row) }))
+      const rule = data?.recurring.find((r) => r.id === tx.recurring_id)
+      if (rule && rule.calc === 'fisso' && Number(rule.amount) !== Number(row.amount)) {
+        const saved = await saveRecurring(rule.id, { amount: row.amount })
+        setData((d) => ({ ...d, recurring: d.recurring.map((r) => (r.id === saved.id ? saved : r)) }))
+      }
+      if (!quiet) showToast('Confermato.')
+    } catch (e) {
+      showToast(`Non sono riuscito a confermarlo: ${e?.message || 'errore sconosciuto'}.`)
+    }
+  }
+  const onRuleSaved = (rule, acc, created) => {
+    setData((d) => ({
+      ...d,
+      recurring: created ? [...d.recurring, rule] : d.recurring.map((r) => (r.id === rule.id ? rule : r)),
+      accounts: acc ? d.accounts.map((a) => (a.id === acc.id ? acc : a)) : d.accounts,
+    }))
+    showToast(created ? `${rule.name}: aggiunto ai ricorrenti.` : rule.active ? `${rule.name}: salvato.` : `${rule.name}: sospeso.`)
+  }
+  const onRuleDeleted = (rule) => {
+    setData((d) => ({ ...d, recurring: d.recurring.filter((r) => r.id !== rule.id) }))
+    showToast(`${rule.name}: eliminato. I movimenti già inseriti restano.`)
+  }
+  const onIgnored = (list) => setData((d) => ({ ...d, settings: { ...(d.settings || {}), ignored_suggestions: list } }))
   // Movimento salvato da una pagina (non dalla schermata del nuovo movimento): per esempio il rimborso di una carta.
   const onTxSaved = (row, message, edited) => {
     setData((d) => ({ ...d, txs: edited ? replaceTx(d.txs, row) : insertByDate(d.txs, row) }))
@@ -162,9 +194,10 @@ export default function App() {
   else if (page === 'movimenti') content = <Movimenti data={data} today={today} onEdit={openEdit} />
   else if (page === 'categorie') content = <Categorie data={data} today={today} onEdit={openEdit} />
   else if (page === 'flusso') content = <Flusso data={data} today={today} onTxSaved={onTxSaved} onDeleted={onDeleted} onEditCard={setCardEd} />
+  else if (page === 'ricorrenti') content = <Ricorrenti data={data} today={today} onRuleSaved={onRuleSaved} onRuleDeleted={onRuleDeleted} onIgnored={onIgnored} />
   else if (page === 'conti') content = <Conti data={data} today={today} onEditCard={setCardEd} />
   else if (page === 'impostazioni') content = <Impostazioni data={data} session={session} look={look} setLook={setLook} onCategorySaved={onCategorySaved} onCategoryDeleted={onCategoryDeleted} />
-  else content = <Home data={data} today={today} go={go} onNew={openNew} onEdit={openEdit} />
+  else content = <Home data={data} today={today} go={go} onNew={openNew} onEdit={openEdit} onConfirm={confirmCheck} />
 
   return (
     <>

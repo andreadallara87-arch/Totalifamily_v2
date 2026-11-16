@@ -78,7 +78,8 @@ export default function Flusso({ data, today, onTxSaved, onDeleted, onEditCard }
     return { ...p, [cardId]: mine }
   })
   // Solo impegni già certi: nessuna spesa stimata. Il fido è un limite che non si supera.
-  const r = useMemo(() => cashflow({ accounts, categories, txs, today, payments: pay }), [accounts, categories, txs, today, pay])
+  const rules = data.recurring
+  const r = useMemo(() => cashflow({ accounts, categories, txs, today, payments: pay, rules }), [accounts, categories, txs, today, pay, rules])
   const catsById = useMemo(() => new Map(categories.map((c) => [c.id, c])), [categories])
   const accById = useMemo(() => new Map(accounts.map((a) => [a.id, a])), [accounts])
 
@@ -119,6 +120,7 @@ export default function Flusso({ data, today, onTxSaved, onDeleted, onEditCard }
     if (it.card) return `${cardParts(it.card, true)} · finora`
     if (it.source === 'rata') return `capitale ${euro(it.capital)} · interessi ${euro(it.interest)}`
     if (it.chosen) return 'importo che stai provando'
+    if (it.ruleId) return 'movimento ricorrente'
     if (it.source === 'ricorrente') return 'come l’ultima volta'
     return 'già inserito'
   }
