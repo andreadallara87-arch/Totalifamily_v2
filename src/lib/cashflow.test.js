@@ -77,6 +77,16 @@ test('carta a saldo: acquisti del mese prima già fatti, piano a rate finché du
   ])
 })
 
+test('carta a saldo: commissioni e bollo inseriti come spesa non si contano due volte', () => {
+  const cats = [...categories, { id: 'fin', parent_id: null, kind: 'spesa', name: 'Costi finanziari' }, { id: 'comm', parent_id: 'fin', kind: 'spesa', name: 'Commissioni bancarie' }]
+  const withCosts = [...txs, tx('spesa', '2026-10-31', 10.2, 'n', { category_id: 'comm' }), tx('spesa', '2026-10-31', 10.2, 'k', { category_id: 'comm' })]
+  const c2 = { ...ctx, txs: withCosts, catsById: new Map(cats.map((c) => [c.id, c])) }
+  assert.deepEqual(cardStatements(c2, '2026-11-30').map((i) => [i.amount, i.card.purchases]), [[390.26, 300]])
+  // Senza rata né bollo la commissione è una spesa come le altre.
+  const plain = accounts.map((a) => (a.id === 'n' ? { ...a, plan_amount: null, statement_fee: null } : a))
+  assert.deepEqual(cardStatements({ ...c2, accounts: plain }, '2026-11-30').map((i) => i.amount), [310.2])
+})
+
 test('rate: niente nel mese già pagato, interessi dell\'ultimo mese', () => {
   const r = instalments(ctx, '2027-01-31')
   assert.deepEqual(r.map((i) => [i.date, i.amount, i.interest, i.capital]), [['2026-12-05', 300, 24, 276], ['2027-01-05', 300, 24, 276]])

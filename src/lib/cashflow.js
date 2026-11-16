@@ -183,19 +183,25 @@ export function instalments(ctx, until) {
   return out
 }
 
+/** Spesa nella categoria "Costi finanziari" (o in una sua sottocategoria): commissioni, bolli, interessi. */
+const isFinanceCost = (ctx, t) => (rootCategory(ctx.catsById, t.category_id)?.name || '').trim().toLowerCase() === 'costi finanziari'
+
 /**
  * Addebiti previsti delle carte a saldo: gli acquisti del mese prima (quelli già fatti), più l'eventuale rata fissa
  * di un piano a rate sulla carta (`plan_amount` fino a `plan_until`) e il bollo dell'estratto conto (`statement_fee`).
+ * Se la carta ha rata o bollo, le commissioni e il bollo inseriti come spesa sulla carta (in "Costi finanziari")
+ * sono già dentro la rata e il bollo previsti, quindi non si contano una seconda volta.
  */
 export function cardStatements(ctx, until) {
   const { accounts, txs, today, cash } = ctx
   const out = []
   for (const a of accounts) {
     if (!isSaldoCard(a) || !cash.has(a.payment_account_id)) continue
+    const ownCosts = Number(a.plan_amount) > 0 || Number(a.statement_fee) > 0
     const bought = new Map()
     const paid = new Set()
     for (const t of txs) {
-      if (t.kind === 'spesa' && t.account_id === a.id) bought.set(ym(t.date), (bought.get(ym(t.date)) || 0) + cents(t.amount))
+      if (t.kind === 'spesa' && t.account_id === a.id && !(ownCosts && isFinanceCost(ctx, t))) bought.set(ym(t.date), (bought.get(ym(t.date)) || 0) + cents(t.amount))
       if (t.kind === 'giroconto' && t.to_account_id === a.id) paid.add(ym(t.date))
     }
     for (let m = ym(today); m <= ym(until); m = addMonths(m, 1)) {
