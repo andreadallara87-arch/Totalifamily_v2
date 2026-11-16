@@ -3,6 +3,7 @@ import Icon from './components/Icon.jsx'
 import Home from './pages/Home.jsx'
 import Movimenti from './pages/Movimenti.jsx'
 import Categorie from './pages/Categorie.jsx'
+import Flusso from './pages/Flusso.jsx'
 import Conti from './pages/Conti.jsx'
 import Impostazioni, { AppearancePicker } from './pages/Impostazioni.jsx'
 import Login from './pages/Login.jsx'
@@ -19,11 +20,12 @@ const PAGES = [
   { id: 'home', label: 'Home', icon: 'home' },
   { id: 'movimenti', label: 'Movimenti', icon: 'list' },
   { id: 'categorie', label: 'Categorie', icon: 'pie', desktopOnly: true },
+  { id: 'flusso', label: 'Flusso di cassa', icon: 'trend', desktopOnly: true },
   { id: 'conti', label: 'Conti e carte', short: 'Conti', icon: 'card' },
   { id: 'impostazioni', label: 'Impostazioni', icon: 'settings' },
 ]
 const TABS = PAGES.filter((p) => !p.desktopOnly)
-const TITLES = { movimenti: 'Movimenti', categorie: 'Spese per categoria', conti: 'Conti e carte', impostazioni: 'Impostazioni' }
+const TITLES = { movimenti: 'Movimenti', categorie: 'Spese per categoria', flusso: 'Flusso di cassa', conti: 'Conti e carte', impostazioni: 'Impostazioni' }
 
 const routeFromHash = () => {
   const id = window.location.hash.replace(/^#\/?/, '').split('?')[0]
@@ -147,6 +149,7 @@ export default function App() {
   else if (!data) content = <section className="card pad"><div className="sb">Carico i tuoi dati…</div></section>
   else if (page === 'movimenti') content = <Movimenti data={data} today={today} onEdit={openEdit} />
   else if (page === 'categorie') content = <Categorie data={data} today={today} onEdit={openEdit} />
+  else if (page === 'flusso') content = <Flusso data={data} today={today} />
   else if (page === 'conti') content = <Conti data={data} today={today} />
   else if (page === 'impostazioni') content = <Impostazioni data={data} session={session} look={look} setLook={setLook} onCategorySaved={onCategorySaved} onCategoryDeleted={onCategoryDeleted} />
   else content = <Home data={data} today={today} go={go} onNew={openNew} onEdit={openEdit} />
