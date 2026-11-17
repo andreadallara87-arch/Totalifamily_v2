@@ -115,3 +115,12 @@ export async function saveAssets(list) {
   const { error } = await supabase.from('user_settings').upsert({ owner: user.id, assets: list, updated_at: new Date().toISOString() })
   if (error) throw error
 }
+
+/** Salva ordine e riquadri nascosti della Home sul telefono. Restituisce false se il database non li accetta ancora. */
+export async function saveHomeLayout(layout) {
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return false
+  const { error } = await supabase.from('user_settings').upsert({ owner: user.id, home_layout: layout, updated_at: new Date().toISOString() })
+  if (error) { console.warn('Ordine della Home non salvato', error); return false }
+  return true
+}

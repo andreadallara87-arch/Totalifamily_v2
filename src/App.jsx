@@ -12,7 +12,8 @@ import Login from './pages/Login.jsx'
 import NewMovement from './components/NewMovement.jsx'
 import CardSettings from './components/CardSettings.jsx'
 import { supabase } from './lib/supabase.js'
-import { loadAll, restoreTransaction, saveAppearance, saveRecurring, updateTransaction } from './lib/data.js'
+import { loadAll, restoreTransaction, saveAppearance, saveHomeLayout, saveRecurring, updateTransaction } from './lib/data.js'
+import { normalizeLayout, readLocalLayout, writeLocalLayout } from './lib/homeLayout.js'
 import { apply, readLocal } from './lib/appearance.js'
 import { todayRome } from './lib/calc.js'
 import { insertByDate, replaceTx } from './lib/entry.js'
@@ -148,6 +149,12 @@ export default function App() {
     showToast(`${rule.name}: eliminato. I movimenti già inseriti restano.`)
   }
   const onAssets = (list) => setData((d) => ({ ...d, settings: { ...(d.settings || {}), assets: list } }))
+  // Ordine dei riquadri della Home sul telefono: salvato nel database (uguale su ogni dispositivo) e anche qui.
+  const onHomeLayout = (layout) => {
+    setData((d) => ({ ...d, settings: { ...(d.settings || {}), home_layout: layout } }))
+    writeLocalLayout(layout)
+    saveHomeLayout(layout)
+  }
   const onIgnored = (list) => setData((d) => ({ ...d, settings: { ...(d.settings || {}), ignored_suggestions: list } }))
   // Movimento salvato da una pagina (non dalla schermata del nuovo movimento): per esempio il rimborso di una carta.
   const onTxSaved = (row, message, edited) => {
@@ -201,7 +208,7 @@ export default function App() {
   else if (page === 'ricorrenti') content = <Ricorrenti data={data} today={today} onRuleSaved={onRuleSaved} onRuleDeleted={onRuleDeleted} onIgnored={onIgnored} />
   else if (page === 'conti') content = <Conti data={data} today={today} onEditCard={setCardEd} />
   else if (page === 'impostazioni') content = <Impostazioni data={data} session={session} look={look} setLook={setLook} onCategorySaved={onCategorySaved} onCategoryDeleted={onCategoryDeleted} />
-  else content = <Home data={data} today={today} go={go} onNew={openNew} onEdit={openEdit} onConfirm={confirmCheck} />
+  else content = <Home data={data} today={today} go={go} onNew={openNew} onEdit={openEdit} onConfirm={confirmCheck} layout={normalizeLayout(data.settings?.home_layout ?? readLocalLayout())} onLayout={onHomeLayout} />
 
   return (
     <>
