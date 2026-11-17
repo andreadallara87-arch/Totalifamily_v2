@@ -7,17 +7,79 @@ import TrendLine from '../components/TrendLine.jsx'
 import { addMonths, ym } from '../lib/calc.js'
 import { euro, monthName, monthShort, monthYear } from '../lib/format.js'
 import { accountVisual } from '../lib/visual.js'
+import { saveAssets } from '../lib/data.js'
 import { debtChanges, monthlyFlows, netWorthSeries, topCategories, trendMonths } from '../lib/trend.js'
 
 const mNum = (m) => Number(m.slice(5, 7))
 const RANGES = [[6, '6 mesi'], [12, '12 mesi'], [120, 'Tutto']]
 
-export default function Andamento({ data, today, go }) {
+/** Casa, auto e altri beni: nome e valore stimato, modificabili. */
+function Assets({ assets, onAssets, showToast }) {
+  const [ed, setEd] = useState(null)
+  const [busy, setBusy] = useState(false)
+  async function save(list, msg) {
+    setBusy(true)
+    try {
+      await saveAssets(list)
+      onAssets(list)
+      setEd(null)
+      showToast(msg)
+    } catch (e) {
+      showToast(`Non sono riuscito a salvarlo: ${e?.message || 'errore sconosciuto'}.`)
+    } finally {
+      setBusy(false)
+    }
+  }
+  function submit(e) {
+    e.preventDefault()
+    const value = Number(String(ed.value).replace(/\./g, '').replace(',', '.'))
+    const name = ed.name.trim()
+    if (!name || !(value > 0)) return
+    const row = { id: ed.id || `${Date.now()}`, name, kind: ed.kind, value: Math.round(value * 100) / 100 }
+    const list = ed.id ? assets.map((a) => (a.id === ed.id ? row : a)) : [...assets, row]
+    save(list, `${name}: ${euro(row.value, { decimals: false })} nel patrimonio.`)
+  }
+  const kinds = [['casa', 'Casa', 'home'], ['auto', 'Auto', 'car'], ['altro', 'Altro', 'piggy']]
+  const iconOf = (k) => (kinds.find((x) => x[0] === k) || kinds[2])[2]
+  return (
+    <div className="an-assets">
+      <div className="flbl">Beni<span className="mute" style={{ textTransform: 'none', letterSpacing: 0, fontWeight: 500 }}>valore stimato</span></div>
+      {assets.map((a) => (
+        <button key={a.id} type="button" className="row tap" onClick={() => setEd({ ...a, value: String(a.value).replace('.', ',') })}>
+          <div className="chip c-verde"><Icon name={iconOf(a.kind)} /></div>
+          <div className="txt"><div className="nm">{a.name}</div><div className="sb">tocca per cambiare il valore</div></div>
+          <Money className="am pos" value={a.value} />
+        </button>
+      ))}
+      {!ed && (
+        <div className="an-add">
+          {kinds.filter(([k]) => k === 'altro' || !assets.some((a) => a.kind === k)).map(([k, l, ic]) => (
+            <button key={k} type="button" className="btn small ghost" onClick={() => setEd({ kind: k, name: k === 'altro' ? '' : l, value: '' })}><Icon name="plus" size={16} />{k === 'altro' ? 'Altro bene' : l}</button>
+          ))}
+        </div>
+      )}
+      {ed && (
+        <form className="an-edit" onSubmit={submit}>
+          <input aria-label="Nome" placeholder="Nome" value={ed.name} onChange={(e) => setEd({ ...ed, name: e.target.value })} />
+          <label className="an-val"><input aria-label="Valore" inputMode="decimal" placeholder="Valore" value={ed.value} autoFocus onChange={(e) => setEd({ ...ed, value: e.target.value })} /> €</label>
+          <div className="an-eacts">
+            {ed.id && <button type="button" className="hb" aria-label="Togli" disabled={busy} onClick={() => save(assets.filter((a) => a.id !== ed.id), `${ed.name} tolto dal patrimonio.`)}><Icon name="trash" /></button>}
+            <button type="button" className="btn small ghost" onClick={() => setEd(null)}>Annulla</button>
+            <button type="submit" className="btn small" disabled={busy}>Salva</button>
+          </div>
+        </form>
+      )}
+    </div>
+  )
+}
+
+export default function Andamento({ data, today, go, onAssets, showToast }) {
   const { accounts, categories, txs } = data
+  const assets = useMemo(() => (Array.isArray(data.settings?.assets) ? data.settings.assets : []), [data.settings])
   const [range, setRange] = useState(12)
   const months = useMemo(() => trendMonths(accounts, today, range), [accounts, today, range])
   const flows = useMemo(() => monthlyFlows({ txs, months, today }), [txs, months, today])
-  const worth = useMemo(() => netWorthSeries({ accounts, txs, months, today }), [accounts, txs, months, today])
+  const worth = useMemo(() => netWorthSeries({ accounts, txs, months, today, assets }), [accounts, txs, months, today, assets])
   const debts = useMemo(() => debtChanges(accounts, worth), [accounts, worth])
   const catsById = useMemo(() => new Map(categories.map((c) => [c.id, c])), [categories])
   const [sel, setSel] = useState(ym(today))
@@ -105,7 +167,7 @@ export default function Andamento({ data, today, go }) {
       <div className="grid g-worth">
         <section className="card pad">
           <h2 className="h">Patrimonio netto</h2>
-          <div className="sb">Quello che hai sui conti meno quello che devi (mutuo, prestiti, carte, fido usato). La casa e l'auto non sono contate.</div>
+          <div className="sb">{assets.length ? 'I tuoi beni e quello che hai sui conti, meno quello che devi (mutuo, prestiti, carte, fido usato).' : "Quello che hai sui conti meno quello che devi (mutuo, prestiti, carte, fido usato). Aggiungi qui sotto il valore della casa."}</div>
           <div className="an-big">
             <Money className="cbig" value={wPoint ? wPoint.net : now.net} />
             {wPoint && wPrev && (
@@ -114,9 +176,10 @@ export default function Andamento({ data, today, go }) {
               </span>
             )}
           </div>
-          <div className="sb" style={{ marginBottom: 10 }}>{wPoint && wPoint.month === ym(today) ? 'Oggi' : `A fine ${monthName(mNum(m))}`}: hai <b style={{ color: 'var(--ink)' }}>{euro(wPoint ? wPoint.have : now.have)}</b> sui conti e devi <b style={{ color: 'var(--ink)' }}>{euro(Math.abs(wPoint ? wPoint.owe : now.owe))}</b></div>
+          <div className="sb" style={{ marginBottom: 10 }}>{wPoint && wPoint.month === ym(today) ? 'Oggi' : `A fine ${monthName(mNum(m))}`}: {assets.length ? <>beni per <b style={{ color: 'var(--ink)' }}>{euro((wPoint || now).goods, { decimals: false })}</b>, </> : 'hai '}<b style={{ color: 'var(--ink)' }}>{euro(wPoint ? wPoint.have : now.have)}</b> sui conti e devi <b style={{ color: 'var(--ink)' }}>{euro(Math.abs(wPoint ? wPoint.owe : now.owe))}</b></div>
           <TrendLine points={points} selected={m} onSelect={(k) => k !== 'start' && setSel(k)} />
           <div className="sb" style={{ marginTop: 12 }}>Ogni mese il patrimonio sale o scende di quanto ti è rimasto (entrate meno spese).</div>
+          <Assets assets={assets} onAssets={onAssets} showToast={showToast} />
         </section>
         <section className="card pad">
           <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12 }}>

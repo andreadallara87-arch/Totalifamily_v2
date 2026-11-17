@@ -147,6 +147,7 @@ export default function App() {
     setData((d) => ({ ...d, recurring: d.recurring.filter((r) => r.id !== rule.id) }))
     showToast(`${rule.name}: eliminato. I movimenti già inseriti restano.`)
   }
+  const onAssets = (list) => setData((d) => ({ ...d, settings: { ...(d.settings || {}), assets: list } }))
   const onIgnored = (list) => setData((d) => ({ ...d, settings: { ...(d.settings || {}), ignored_suggestions: list } }))
   // Movimento salvato da una pagina (non dalla schermata del nuovo movimento): per esempio il rimborso di una carta.
   const onTxSaved = (row, message, edited) => {
@@ -195,7 +196,7 @@ export default function App() {
   else if (!data) content = <section className="card pad"><div className="sb">Carico i tuoi dati…</div></section>
   else if (page === 'movimenti') content = <Movimenti data={data} today={today} onEdit={openEdit} />
   else if (page === 'categorie') content = <Categorie data={data} today={today} onEdit={openEdit} />
-  else if (page === 'andamento') content = <Andamento data={data} today={today} go={go} />
+  else if (page === 'andamento') content = <Andamento data={data} today={today} go={go} onAssets={onAssets} showToast={showToast} />
   else if (page === 'flusso') content = <Flusso data={data} today={today} onTxSaved={onTxSaved} onDeleted={onDeleted} onEditCard={setCardEd} />
   else if (page === 'ricorrenti') content = <Ricorrenti data={data} today={today} onRuleSaved={onRuleSaved} onRuleDeleted={onRuleDeleted} onIgnored={onIgnored} />
   else if (page === 'conti') content = <Conti data={data} today={today} onEditCard={setCardEd} />

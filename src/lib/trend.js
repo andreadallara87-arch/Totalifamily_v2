@@ -45,11 +45,16 @@ export function monthlyFlows({ txs, months, today }) {
   })
 }
 
+/** Valore totale dei beni (casa, auto...) in centesimi. */
+export const assetsCents = (assets) => (assets || []).reduce((s, a) => s + Math.max(0, cents(a.value)), 0)
+
 /**
  * Patrimonio netto a fine mese (o a oggi per il mese in corso), con il punto di partenza prima del primo mese.
- * "Hai" = somma dei saldi positivi, "Devi" = somma dei saldi negativi (mutuo, prestiti, carte, fido usato).
+ * "Hai" = somma dei saldi positivi, "Devi" = somma dei saldi negativi (mutuo, prestiti, carte, fido usato),
+ * "Beni" = valore stimato di casa, auto... (lo stesso in tutti i mesi).
  */
-export function netWorthSeries({ accounts, txs, months, today }) {
+export function netWorthSeries({ accounts, txs, months, today, assets = [] }) {
+  const goods = assetsCents(assets)
   const accs = counted(accounts)
   if (!months.length) return []
   const points = [{ key: 'start', month: addMonths(months[0], -1), date: monthEnd(addMonths(months[0], -1)) }]
@@ -64,7 +69,7 @@ export function netWorthSeries({ accounts, txs, months, today }) {
       if (v > 0) have += v
       else owe += v
     }
-    return { ...p, have: fromCents(have), owe: fromCents(owe), net: fromCents(have + owe), byAcc }
+    return { ...p, have: fromCents(have), owe: fromCents(owe), goods: fromCents(goods), net: fromCents(have + owe + goods), byAcc }
   })
 }
 

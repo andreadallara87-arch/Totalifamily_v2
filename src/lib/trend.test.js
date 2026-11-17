@@ -46,3 +46,9 @@ test('categorie che pesano di più', () => {
   const t = topCategories({ txs, catsById, month: '2026-10', today })
   assert.deepEqual(t.map((x) => x.id), ['i'])
 })
+
+test('i beni si sommano al patrimonio', () => {
+  const w = netWorthSeries({ accounts, txs, months: ['2026-09'], today, assets: [{ name: 'Casa', value: 200000 }, { name: 'Auto', value: '9000' }] })
+  assert.equal(w[1].goods, 209000)
+  assert.equal(w[1].net, -104180 + 209000)
+})
