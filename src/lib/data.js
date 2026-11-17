@@ -18,7 +18,8 @@ export async function loadAll() {
     supabase.from('accounts').select(ACC_FIELDS).order('sort_order'),
     supabase.from('categories').select(CAT_FIELDS).order('sort_order'),
     supabase.from('transactions').select(TX_FIELDS).order('date', { ascending: false }).order('created_at', { ascending: false }).range(0, 49999),
-    supabase.from('user_settings').select('theme, accent, main_account_id, ignored_suggestions').maybeSingle(),
+    // Tutte le colonne: così l'app funziona anche prima che il database abbia i "beni" (casa, auto).
+    supabase.from('user_settings').select('*').maybeSingle(),
     supabase.from('imports').select('id, source, imported_at, report').order('imported_at', { ascending: false }),
     supabase.from('recurring').select(RULE_FIELDS).order('sort_order').order('created_at'),
   ])
@@ -104,5 +105,13 @@ export async function saveIgnored(list) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return
   const { error } = await supabase.from('user_settings').upsert({ owner: user.id, ignored_suggestions: list, updated_at: new Date().toISOString() })
+  if (error) throw error
+}
+
+/** Salva i beni che contano nel patrimonio netto (casa, auto...). */
+export async function saveAssets(list) {
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return
+  const { error } = await supabase.from('user_settings').upsert({ owner: user.id, assets: list, updated_at: new Date().toISOString() })
   if (error) throw error
 }

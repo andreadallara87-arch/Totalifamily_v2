@@ -178,6 +178,11 @@ export default function Home({ data, today, go, onNew, onEdit, onConfirm }) {
             <div className="txt"><div className="nm">Movimenti ricorrenti</div><div className="sb">{rules.filter((r) => r.active).length} attivi, si inseriscono da soli</div></div>
             <Icon name="right" size={18} style={{ color: 'var(--mute)', flex: 'none' }} />
           </a>
+          <a className="row tap" href="#/andamento" onClick={(e) => { e.preventDefault(); go('andamento') }}>
+            <div className="chip c-verde"><Icon name="bars" /></div>
+            <div className="txt"><div className="nm">Andamento mese per mese</div><div className="sb">entrate, spese, patrimonio e debiti</div></div>
+            <Icon name="right" size={18} style={{ color: 'var(--mute)', flex: 'none' }} />
+          </a>
         </section>
       </div>
 
