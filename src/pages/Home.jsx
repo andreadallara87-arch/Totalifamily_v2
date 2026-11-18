@@ -186,7 +186,7 @@ export default function Home({ data, today, go, onNew, onEdit, onConfirm, onLimi
         <div className="txt"><div className="nm">Movimenti ricorrenti</div><div className="sb">{rules.filter((r) => r.active).length} attivi, si inseriscono da soli</div></div>
         <Icon name="right" size={18} style={{ color: 'var(--mute)', flex: 'none' }} />
       </a>
-      <a className="row tap" href="#/flussi?vista=vive" onClick={(e) => { e.preventDefault(); window.location.hash = '/flussi?vista=vive'; window.scrollTo(0, 0) }}>
+      <a className="row tap" href="#/spese" onClick={(e) => { e.preventDefault(); go('spese') }}>
         <div className="chip c-verde"><Icon name="bars" /></div>
         <div className="txt"><div className="nm">Spese vive mese per mese</div><div className="sb">confronto con il limite, categoria per categoria</div></div>
         <Icon name="right" size={18} style={{ color: 'var(--mute)', flex: 'none' }} />

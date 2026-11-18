@@ -2,7 +2,8 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import Icon from './components/Icon.jsx'
 import Home from './pages/Home.jsx'
 import Movimenti from './pages/Movimenti.jsx'
-import Flussi from './pages/Flussi.jsx'
+import Flusso from './pages/Flusso.jsx'
+import Spese from './pages/Spese.jsx'
 import Patrimonio from './pages/Patrimonio.jsx'
 import Ricorrenti from './pages/Ricorrenti.jsx'
 import Impostazioni, { AppearancePicker } from './pages/Impostazioni.jsx'
@@ -18,22 +19,23 @@ import { insertByDate, replaceTx } from './lib/entry.js'
 import { upsertCategory } from './lib/categories.js'
 import { dayLong } from './lib/format.js'
 
-// Sezioni: Home (con i conti che aprono i movimenti), Flussi (flusso di cassa, spese vive, categorie), Patrimonio.
-// Movimenti non è più una sezione: si apre dalla Home o dal Patrimonio toccando un conto, o da "Tutti i movimenti".
+// Sezioni: Home (con i conti che aprono i movimenti), Flusso di cassa, Spese (mese per mese e per categoria), Patrimonio.
+// Movimenti si apre dalla Home toccando un conto o "Tutti i movimenti"; Impostazioni toccando la propria iniziale.
 const PAGES = [
   { id: 'home', label: 'Home', icon: 'home' },
-  { id: 'flussi', label: 'Flussi e report', short: 'Flussi', icon: 'trend' },
+  { id: 'flusso', label: 'Flusso di cassa', short: 'Flusso', icon: 'trend' },
+  { id: 'spese', label: 'Spese', icon: 'pie' },
   { id: 'patrimonio', label: 'Patrimonio', icon: 'bank' },
   { id: 'ricorrenti', label: 'Ricorrenti', icon: 'rotate', desktopOnly: true },
-  { id: 'impostazioni', label: 'Impostazioni', icon: 'settings' },
+  { id: 'impostazioni', label: 'Impostazioni', icon: 'settings', hidden: true },
   { id: 'movimenti', label: 'Movimenti', icon: 'list', hidden: true },
 ]
 const NAV = PAGES.filter((p) => !p.hidden)
-// Sul telefono: Home, Flussi, +, Patrimonio, Impostazioni.
+// Sul telefono: Home, Flusso, +, Spese, Patrimonio.
 const TABS = NAV.filter((p) => !p.desktopOnly)
-const TITLES = { movimenti: 'Movimenti', flussi: 'Flussi e report', patrimonio: 'Situazione patrimoniale', ricorrenti: 'Movimenti ricorrenti', impostazioni: 'Impostazioni' }
+const TITLES = { movimenti: 'Movimenti', flusso: 'Flusso di cassa', spese: 'Spese', patrimonio: 'Situazione patrimoniale', ricorrenti: 'Movimenti ricorrenti', impostazioni: 'Impostazioni' }
 // Vecchi indirizzi: portano alla sezione nuova.
-const ALIASES = { flusso: 'flussi', andamento: 'flussi', categorie: 'flussi', conti: 'patrimonio' }
+const ALIASES = { andamento: 'spese', categorie: 'spese', conti: 'patrimonio' }
 
 const routeFromHash = () => {
   const raw = window.location.hash.replace(/^#\/?/, '').split('?')[0]
@@ -216,7 +218,8 @@ export default function App() {
   if (error) content = <section className="card pad"><h2 className="h">Non riesco a leggere i dati</h2><div className="sb">{error}</div></section>
   else if (!data) content = <section className="card pad"><div className="sb">Carico i tuoi dati…</div></section>
   else if (page === 'movimenti') content = <Movimenti data={data} today={today} onEdit={openEdit} />
-  else if (page === 'flussi') content = <Flussi data={data} today={today} go={go} onEdit={openEdit} onAssets={onAssets} showToast={showToast} onTxSaved={onTxSaved} onDeleted={onDeleted} onEditCard={setCardEd} onAccountSaved={onAccountSaved} onNew={openNew} />
+  else if (page === 'flusso') content = <Flusso data={data} today={today} onTxSaved={onTxSaved} onDeleted={onDeleted} onEditCard={setCardEd} onAccountSaved={onAccountSaved} onNew={openNew} />
+  else if (page === 'spese') content = <Spese data={data} today={today} go={go} onEdit={openEdit} onAssets={onAssets} showToast={showToast} />
   else if (page === 'patrimonio') content = <Patrimonio data={data} today={today} go={go} onAssets={onAssets} showToast={showToast} onEditCard={setCardEd} />
   else if (page === 'ricorrenti') content = <Ricorrenti data={data} today={today} onRuleSaved={onRuleSaved} onRuleDeleted={onRuleDeleted} onIgnored={onIgnored} />
   else if (page === 'impostazioni') content = <Impostazioni data={data} session={session} look={look} setLook={setLook} onCategorySaved={onCategorySaved} onCategoryDeleted={onCategoryDeleted} />
@@ -264,7 +267,7 @@ export default function App() {
 
           <header className="mtop">
             {TABS.some((p) => p.id === page) ? (
-              <div className="avatar" style={{ width: 40, height: 40 }}>{initial}</div>
+              <a className="avatar" href="#/impostazioni" aria-label="Impostazioni" title="Impostazioni" style={{ width: 40, height: 40, textDecoration: 'none' }}>{initial}</a>
             ) : (
               // Pagine fuori dalla barra in basso (Movimenti, Ricorrenti): freccia per tornare indietro.
               <button type="button" className="hb" aria-label="Indietro" onClick={() => (window.history.length > 1 ? window.history.back() : go('home'))}><Icon name="left" /></button>
