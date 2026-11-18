@@ -43,7 +43,7 @@ function AccChip({ a, size = '' }) {
 }
 
 /** Schermata per inserire un movimento nuovo o, se riceve `tx`, per modificarlo o eliminarlo. */
-export default function NewMovement({ data, today, initialKind = 'spesa', tx = null, onClose, onSaved, onDeleted, onCategorySaved }) {
+export default function NewMovement({ data, today, initialKind = 'spesa', tx = null, preset = null, onClose, onSaved, onDeleted, onCategorySaved }) {
   const wide = useWide()
   const editing = !!tx
   const { accounts, categories, txs, settings } = data
@@ -63,9 +63,9 @@ export default function NewMovement({ data, today, initialKind = 'spesa', tx = n
   }, [accounts, categories, txs, settings, today, tx])
   const { accs, accById, catById, roots, subsOf, rootOf, balance, mainId } = ctx
 
-  const fresh = () => ({ amount: '', cat: null, acc: mainId, accTouched: false, suggested: false, from: mainId, to: null, date: today, note: '' })
+  const fresh = () => ({ amount: '', cat: null, acc: mainId, accTouched: false, suggested: false, from: mainId, to: null, date: today, note: '', oneOff: !!preset?.oneOff })
   const [kind, setKind] = useState(tx ? tx.kind : initialKind)
-  const [f, setF] = useState(() => (tx ? formFromTx(tx, mainId) : fresh()))
+  const [f, setF] = useState(() => (tx ? { ...formFromTx(tx, mainId), oneOff: !!tx.one_off } : fresh()))
   const [ui, setUi] = useState(() => ({ sheet: null, sheetRoot: null, q: '', calMonth: today.slice(0, 7), deskRoot: (tx?.category_id && rootOf(tx.category_id)?.id) || null }))
   const [busy, setBusy] = useState(false)
   const [ed, setEd] = useState(null)
@@ -121,7 +121,7 @@ export default function NewMovement({ data, today, initialKind = 'spesa', tx = n
     if (miss) { setErr(miss.replace(/^Scrivi/, 'Prima scrivi').replace(/^Scegli/, 'Prima scegli') + '.'); return }
     setBusy(true); setErr(null)
     try {
-      const row = buildTransaction({ kind, amount: f.amount, date: f.date, accountId: f.acc, fromAccountId: f.from, toAccountId: f.to, categoryId: f.cat, note: f.note, today })
+      const row = buildTransaction({ kind, amount: f.amount, date: f.date, accountId: f.acc, fromAccountId: f.from, toAccountId: f.to, categoryId: f.cat, note: f.note, today, oneOff: f.oneOff })
       const saved = editing ? await updateTransaction(tx.id, row) : await addTransaction(row)
       onSaved(saved, editing ? 'Modifiche salvate.' : savedMessage(kind, saved.amount, f.date, today))
     } catch (e) {
@@ -227,6 +227,12 @@ export default function NewMovement({ data, today, initialKind = 'spesa', tx = n
         <div className="mv-hint"><Icon name="spark" size={15} /><span>Conto proposto: per {catById.get(f.cat)?.name} di solito usi {accById.get(f.acc).name}.</span></div>
       )}
       {f.date > today && <div className="mv-hint"><Icon name="calendar" size={15} /><span>Data futura: il movimento comparirà in "In arrivo" e conterà nel saldo da quel giorno.</span></div>}
+      {(f.oneOff || f.date > today) && kind !== 'giroconto' && (
+        <button type="button" className={`mv-hint mv-oneoff${f.oneOff ? ' on' : ''}`} aria-pressed={f.oneOff} onClick={() => up((o) => ({ oneOff: !o.oneOff }))}>
+          <Icon name={f.oneOff ? 'check' : 'spark'} size={15} />
+          <span>{f.oneOff ? 'Una tantum: si aggiunge alle previsioni e non prende il posto dello stipendio o di altri movimenti che si ripetono. Tocca per togliere.' : 'È una tantum, come la tredicesima o i regali di Natale? Tocca qui: si aggiunge alle previsioni senza prendere il posto dello stipendio.'}</span>
+        </button>
+      )}
       {err && <div className="mv-hint err" role="alert"><Icon name="alert" size={15} /><span>{err}</span></div>}
     </>
   )

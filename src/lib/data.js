@@ -1,6 +1,6 @@
 import { supabase } from './supabase.js'
 
-const TX_FIELDS = 'id, kind, date, amount, account_id, to_account_id, category_id, note, planned, recurring_id, to_check'
+const TX_FIELDS = 'id, kind, date, amount, account_id, to_account_id, category_id, note, planned, recurring_id, to_check, one_off'
 const RULE_FIELDS = 'id, name, kind, account_id, to_account_id, category_id, interest_category_id, amount, calc, day, every_months, next_date, until_month, check_mode, active, sort_order, created_at'
 const CAT_FIELDS = 'id, parent_id, kind, name, icon, symbol, tint, budget, sort_order'
 

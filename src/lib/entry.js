@@ -67,7 +67,7 @@ export function missingField({ kind, amount, categoryId, toAccountId }) {
 }
 
 /** Riga pronta per la tabella transactions. Un movimento con data futura è "previsto". */
-export function buildTransaction({ kind, amount, date, accountId, fromAccountId, toAccountId, categoryId, note, today }) {
+export function buildTransaction({ kind, amount, date, accountId, fromAccountId, toAccountId, categoryId, note, today, oneOff = false }) {
   const giro = kind === 'giroconto'
   return {
     kind,
@@ -78,6 +78,7 @@ export function buildTransaction({ kind, amount, date, accountId, fromAccountId,
     category_id: giro ? null : categoryId,
     note: (note || '').trim(),
     planned: date > today,
+    one_off: !!oneOff,
   }
 }
 

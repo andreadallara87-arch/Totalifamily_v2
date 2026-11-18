@@ -188,3 +188,11 @@
   .chk-acts { width: 100%; margin-left: 0; padding-left: 52px; }
   .chk-acts .btn { flex: 1; }
 }
+
+/* Previsioni che si possono cambiare toccandole. */
+.fl-mov.ed { cursor: pointer; border-radius: 12px; transition: background-color .15s; }
+.fl-mov.ed:hover, .fl-mov.ed.on { background: var(--soft); }
+.fl-mov.ed:focus-visible { outline: 2px solid var(--acc); outline-offset: -2px; }
+.fl-editbox { margin: 0 0 8px; padding: 12px 14px; border-radius: 14px; background: var(--soft); }
+.fl-editbox .fl-due-h { margin-bottom: 6px; }
+.fl-add { display: inline-flex; align-items: center; gap: 6px; margin: 2px 0 8px; }

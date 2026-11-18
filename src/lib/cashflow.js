@@ -101,6 +101,10 @@ function interestByMonth(ctx) {
   return out
 }
 
+/** Cosa serve per inserire un movimento uguale (tranne data e importo): tipo, conti, categoria e regola ricorrente. */
+const template = (t) => ({ kind: t.kind, account_id: t.account_id, to_account_id: t.to_account_id || null, category_id: t.category_id || null, recurring_id: t.recurring_id || null })
+const ruleTemplate = (r) => ({ kind: r.kind, account_id: r.account_id, to_account_id: r.to_account_id || null, category_id: r.category_id || null, recurring_id: r.id })
+
 /**
  * Movimenti che si ripetono: entrate e giroconti che negli ultimi tre mesi (questo compreso, fino a oggi)
  * ci sono stati in almeno due mesi diversi. Importo e giorno sono quelli dell'ultima volta.
@@ -112,7 +116,8 @@ export function recurringPatterns(ctx) {
   const by = new Map()
   for (const t of ctx.txs) {
     const m = ym(t.date)
-    if (!months.has(m) || t.date > ctx.today) continue
+    // Le una tantum (tredicesima, regali) non sono "come l'ultima volta".
+    if (!months.has(m) || t.date > ctx.today || t.one_off) continue
     const c = classify(t, ctx)
     // Le ricariche dei borsellini (Satispay) cambiano ogni volta: le prevede `walletPlan`.
     if (!c || c.group === 'spese' || c.group === 'borsellino') continue
@@ -121,13 +126,13 @@ export function recurringPatterns(ctx) {
     let p = by.get(c.pattern)
     if (!p) by.set(c.pattern, (p = { ...c, months: new Map(), last: null }))
     p.months.set(m, (p.months.get(m) || 0) + cents(t.amount))
-    if (!p.last || t.date > p.last) p.last = t.date
+    if (!p.last || t.date >= p.last) { p.last = t.date; p.tpl = template(t) }
   }
   const out = []
   for (const p of by.values()) {
     if (p.months.size < 2) continue
     const lastMonth = ym(p.last)
-    out.push({ pattern: p.pattern, dir: p.dir, group: p.group, line: p.line, rootId: p.rootId || null, accountId: p.accountId || null, fromId: p.fromId || null, amount: fromCents(p.months.get(lastMonth)), day: day(p.last), last: p.last, count: p.months.size })
+    out.push({ pattern: p.pattern, dir: p.dir, group: p.group, line: p.line, rootId: p.rootId || null, accountId: p.accountId || null, fromId: p.fromId || null, amount: fromCents(p.months.get(lastMonth)), day: day(p.last), last: p.last, count: p.months.size, tpl: p.tpl })
   }
   return out.sort((a, b) => a.day - b.day)
 }
@@ -250,13 +255,22 @@ export function expectedItems(ctx, until, payments = null, wallets = null) {
   for (const t of txs) {
     const c = classify(t, ctx)
     if (!c) continue
-    seen.add(`${c.pattern || c.line}|${ym(t.date)}`)
+    // Una una tantum (per esempio la tredicesima) si aggiunge alle previsioni: non prende il posto dello stipendio.
+    if (!t.one_off) seen.add(`${c.pattern || c.line}|${ym(t.date)}`)
     if (t.date <= today || t.date > until) continue
-    const it = { date: t.date, dir: c.dir, group: c.group, line: c.line, rootId: c.rootId || null, accountId: c.accountId || null, fromId: c.fromId || null, amount: Number(t.amount), source: 'inserito', txId: t.id }
+    const it = { date: t.date, dir: c.dir, group: c.group, line: c.line, rootId: c.rootId || null, accountId: c.accountId || null, fromId: c.fromId || null, amount: Number(t.amount), source: 'inserito', txId: t.id, oneOff: !!t.one_off, tpl: template(t) }
     items.push(repayment(it, c, ym(t.date), Number(t.amount)))
   }
   items.push(...instalments(ctx, until))
   items.push(...cardStatements(ctx, until))
+  // Se una regola ricorrente fa lo stesso movimento di una previsione "come l'ultima volta", cambiando l'importo
+  // si inserisce il movimento della regola (così il giorno della regola non se ne aggiunge un altro).
+  const ruleFor = new Map()
+  for (const r of ctx.rules || []) {
+    if (!r.active || r.calc !== 'fisso') continue
+    const c = classify({ ...r, date: today }, ctx)
+    if (c?.pattern && !ruleFor.has(c.pattern)) ruleFor.set(c.pattern, r)
+  }
   for (const p of patterns) {
     for (let m = ym(today); m <= ym(until); m = addMonths(m, 1)) {
       if (seen.has(`${p.pattern}|${m}`)) continue
@@ -264,7 +278,8 @@ export function expectedItems(ctx, until, payments = null, wallets = null) {
       let date = dateInMonth(m, (revolving(p) && ctx.accById.get(p.accountId)?.instalment_day) || p.day)
       if (date <= today) date = addDays(today, 1)
       if (ym(date) !== m || date > until) continue
-      const it = { date, dir: p.dir, group: p.group, line: p.line, rootId: p.rootId, accountId: p.accountId, fromId: p.fromId, amount: p.amount, source: 'ricorrente' }
+      const rule = ruleFor.get(p.pattern)
+      const it = { date, dir: p.dir, group: p.group, line: p.line, rootId: p.rootId, accountId: p.accountId, fromId: p.fromId, amount: p.amount, source: 'ricorrente', tpl: rule ? ruleTemplate(rule) : { ...p.tpl, recurring_id: null } }
       items.push(repayment(it, p, m, null))
     }
   }
@@ -276,7 +291,7 @@ export function expectedItems(ctx, until, payments = null, wallets = null) {
     if (!c || c.group === 'borsellino' || (c.pattern && known.has(c.pattern))) continue
     for (const date of occurrences(r, today, until)) {
       if ((c.pattern && seen.has(`${c.pattern}|${ym(date)}`)) || doneInMonth(r, txs, date)) continue
-      items.push({ date, dir: c.dir, group: c.group, line: c.line, rootId: c.rootId || null, accountId: c.accountId || null, fromId: c.fromId || null, amount: Number(r.amount), source: 'ricorrente', ruleId: r.id, name: r.name })
+      items.push({ date, dir: c.dir, group: c.group, line: c.line, rootId: c.rootId || null, accountId: c.accountId || null, fromId: c.fromId || null, amount: Number(r.amount), source: 'ricorrente', ruleId: r.id, name: r.name, tpl: ruleTemplate(r) })
     }
   }
   items.push(...walletPlan(ctx, until, wallets).items)

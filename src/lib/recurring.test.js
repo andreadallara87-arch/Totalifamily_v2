@@ -124,3 +124,10 @@ test('modulo: calcolo dal conto di arrivo, controlli e riga da salvare', () => {
   assert.equal(ruleProblem({ ...f, amount: '' }, accById), "Scrivi l'importo")
   assert.equal(ruleProblem({ ...f, toAccountId: 'nexi', amount: '' }, accById), null)
 })
+
+test('una tantum: non conta mai come il movimento di una regola', () => {
+  const r = { id: 'r1', kind: 'entrata', account_id: 'c', category_id: 'stip', amount: 2000, check_mode: true, calc: 'fisso' }
+  const t = { kind: 'entrata', account_id: 'c', category_id: 'stip', amount: 1800, date: '2026-12-15' }
+  assert.equal(matchesRule(t, r), true)
+  assert.equal(matchesRule({ ...t, one_off: true }, r), false)
+})

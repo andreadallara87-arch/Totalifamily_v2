@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { Fragment, useMemo, useState } from 'react'
 import Icon from '../components/Icon.jsx'
 import Money from '../components/Money.jsx'
 import CatChip from '../components/CatChip.jsx'
@@ -62,7 +62,7 @@ function AmountStepper({ value, onChange, label, step = 50 }) {
   )
 }
 
-export default function Flusso({ data, today, onTxSaved, onDeleted, onEditCard, onAccountSaved }) {
+export default function Flusso({ data, today, onTxSaved, onDeleted, onEditCard, onAccountSaved, onNew }) {
   const { accounts, categories, txs } = data
   const [month, setMonth] = useState(ym(today))
   const [more, setMore] = useState(false)
@@ -70,6 +70,8 @@ export default function Flusso({ data, today, onTxSaved, onDeleted, onEditCard, 
   // Finché non lo salvi resta solo qui: la pagina si ricalcola, ma tra i movimenti non cambia niente.
   const [pay, setPay] = useState({})
   const [saving, setSaving] = useState(null)
+  // Previsione che stai cambiando in "Prossimi movimenti": { key, amount }.
+  const [edit, setEdit] = useState(null)
   const [payErr, setPayErr] = useState(null)
   const setPayment = (cardId, m, amount) => setPay((p) => {
     const mine = { ...p[cardId] }
@@ -131,6 +133,7 @@ export default function Flusso({ data, today, onTxSaved, onDeleted, onEditCard, 
     if (it.source === 'borsellino') return it.basis === 'prova' ? 'stima: cifra che stai provando' : it.basis === 'scelta' ? 'stima: cifra al mese che hai scelto' : 'stima: media degli ultimi mesi'
     if (it.ruleId) return 'movimento ricorrente'
     if (it.source === 'ricorrente') return 'come l’ultima volta'
+    if (it.oneOff) return 'una tantum'
     return 'già inserito'
   }
   // Carta con interessi: cosa c'è nell'estratto conto e di quanto cambia il debito con il rimborso scelto.
@@ -173,6 +176,38 @@ export default function Flusso({ data, today, onTxSaved, onDeleted, onEditCard, 
       onAccountSaved?.(acc, amount === null ? `Ricariche ${w.name}: torno alla media di ${round(w.average)} al mese.` : `Ricariche ${w.name}: ${round(amount)} al mese.`)
     } catch (e) {
       setPayErr({ key, text: `Non sono riuscito a salvare: ${e?.message || 'errore sconosciuto'}. Riprova.` })
+    }
+    setSaving(null)
+  }
+  // Previsioni che si possono cambiare da qui: entrate, spese e giroconti che si ripetono o già inseriti.
+  // Rate, carte e ricariche dei borsellini hanno il loro calcolo (le carte e Satispay si cambiano nei loro riquadri).
+  const editable = (it) => !!it.tpl && ['entrate', 'prelievi', 'spese', 'debiti'].includes(it.group) && (it.source === 'ricorrente' || it.source === 'inserito')
+  const itemKey = (it) => `${it.date}|${it.line}|${it.txId || it.ruleId || ''}`
+  async function saveItem(it, amount) {
+    const key = `i|${itemKey(it)}`
+    if (saving) return
+    setSaving(key); setPayErr(null)
+    try {
+      const row = it.txId
+        ? await updateTransaction(it.txId, { amount })
+        : await addTransaction({ ...it.tpl, date: it.date, amount, note: '', planned: it.date > today })
+      setEdit(null)
+      onTxSaved(row, `${it.label}: ${round(amount)} previsti per il ${dayMonth(it.date)}.`, !!it.txId)
+    } catch (e) {
+      setPayErr({ key, text: `Non sono riuscito a salvare: ${e?.message || 'errore sconosciuto'}. Riprova.` })
+    }
+    setSaving(null)
+  }
+  async function removeItem(it) {
+    const key = `i|${itemKey(it)}`
+    if (saving) return
+    setSaving(key); setPayErr(null)
+    try {
+      const full = await deleteTransaction(it.txId)
+      setEdit(null)
+      onDeleted(full)
+    } catch (e) {
+      setPayErr({ key, text: `Non sono riuscito a toglierlo: ${e?.message || 'errore sconosciuto'}. Riprova.` })
     }
     setSaving(null)
   }
@@ -373,7 +408,7 @@ export default function Flusso({ data, today, onTxSaved, onDeleted, onEditCard, 
         <section className="card pad">
           <div className="fl-sec">
             <h2 className="h">Prossimi movimenti sul conto</h2>
-            <span className="sb">a destra, il disponibile dopo ogni movimento se non spendi altro</span>
+            <span className="sb">a destra, il disponibile dopo ogni movimento se non spendi altro. Tocca stipendio, entrate o spese per cambiare l'importo</span>
           </div>
           <div className="row fl-mov today">
             <span className="d">Oggi</span>
@@ -383,8 +418,15 @@ export default function Flusso({ data, today, onTxSaved, onDeleted, onEditCard, 
           </div>
           {shown.map((it, i) => {
             const tight = it.date === w1.until && Math.abs(it.after - w1.amount) < 0.005 && (shown[i + 1]?.date !== it.date)
+            const can = editable(it)
+            const key = itemKey(it)
+            const open = can && edit?.key === key
+            const busy = saving === `i|${key}`
+            const toggle = () => { setPayErr(null); setEdit(open ? null : { key, amount: it.amount }) }
+            const rowProps = can ? { role: 'button', tabIndex: 0, 'aria-expanded': open, 'aria-label': `${it.label} del ${dayMonth(it.date)}: cambia l'importo`, onClick: toggle, onKeyDown: (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle() } } } : {}
             return (
-              <div key={`${it.date}-${it.line}-${i}`} className={`row fl-mov${tight ? ' tight' : ''}`}>
+              <Fragment key={`${it.date}-${it.line}-${i}`}>
+              <div className={`row fl-mov${tight ? ' tight' : ''}${can ? ' ed' : ''}${open ? ' on' : ''}`} {...rowProps}>
                 <span className="d">{dayShort(it.date)}</span>
                 {chipFor(it)}
                 <div className="txt">
@@ -398,9 +440,30 @@ export default function Flusso({ data, today, onTxSaved, onDeleted, onEditCard, 
                   {tight && <span className="fl-tag">punto più stretto</span>}
                 </div>
               </div>
+              {open && (
+                <div className="fl-editbox">
+                  <div className="fl-due-h">
+                    <span>{it.dir === 'in' ? 'Quanto entra' : 'Quanto esce'}<small>il {dayMonth(it.date)}</small></span>
+                    <AmountStepper step={it.amount >= 500 ? 50 : 10} value={edit.amount} onChange={(x) => { setPayErr(null); setEdit({ key, amount: x }) }} label={`Importo di ${it.label} del ${dayMonth(it.date)}`} />
+                  </div>
+                  <div className="sb">
+                    {it.txId ? 'È già tra i movimenti previsti: cambio il suo importo.' : 'Lo salvo tra i movimenti previsti di quel giorno, al posto della previsione. Gli altri mesi restano come prima.'}
+                  </div>
+                  <div className="fl-acts">
+                    <button type="button" className="btn small" disabled={busy || edit.amount <= 0 || Math.abs(edit.amount - it.amount) < 0.005} onClick={() => saveItem(it, edit.amount)}><Icon name="check" size={16} />{busy ? 'Salvo…' : `Salva ${round(edit.amount)}`}</button>
+                    {it.txId && <button type="button" className="lnk" disabled={busy} onClick={() => removeItem(it)}>{it.oneOff ? 'Togli questa una tantum' : 'Togli, torna alla previsione'}</button>}
+                    <button type="button" className="lnk" disabled={busy} onClick={() => { setPayErr(null); setEdit(null) }}>Annulla</button>
+                  </div>
+                  {payErr?.key === `i|${key}` && <div className="mv-hint err" role="alert" style={{ marginTop: 6, padding: 0 }}><Icon name="alert" size={15} /><span>{payErr.text}</span></div>}
+                </div>
+              )}
+              </Fragment>
             )
           })}
           {w2 && <button type="button" className="lnk fl-more" onClick={() => setMore(!more)}>{more ? `Mostra solo fino al ${dayMonth(w1.until)}` : `Mostra anche fino al ${dayMonth(w2.until)}`}</button>}
+          {onNew && (
+            <button type="button" className="lnk fl-add" onClick={() => onNew('spesa', { oneOff: true })}><Icon name="plus" size={16} />Aggiungi una spesa o entrata una tantum</button>
+          )}
         </section>
       </div>
 

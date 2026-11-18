@@ -221,3 +221,21 @@ test('borsellino: Satispay fuori dal disponibile, ricariche previste con la medi
   assert.equal(r.wallets[0].basis, 'media')
   assert.equal(spendingSplit({ accounts: wAcc, txs: wTxs, today, month: '2026-10' }).wallet, 30)
 })
+
+test('una tantum: la tredicesima si aggiunge allo stipendio, non lo sostituisce; le previsioni sanno come inserirsi', () => {
+  const base = cashflow({ accounts, categories, txs, today })
+  const stipDic = base.items.find((i) => i.line === 'entrata:stip' && i.date.startsWith('2026-12'))
+  assert.equal(stipDic.amount, 2000)
+  assert.deepEqual(stipDic.tpl, { kind: 'entrata', account_id: 'c', to_account_id: null, category_id: 'stip', recurring_id: null })
+  // Tredicesima nella categoria Stipendio, segnata come una tantum: lo stipendio di dicembre resta.
+  const tredicesima = tx('entrata', '2026-12-15', 1800, 'c', { category_id: 'stip', planned: true, one_off: true })
+  const r = cashflow({ accounts, categories, txs: [...txs, tredicesima], today })
+  const dic = r.items.filter((i) => i.line === 'entrata:stip' && i.date.startsWith('2026-12'))
+  assert.deepEqual(dic.map((i) => [i.amount, i.source, i.oneOff || false]), [[1800, 'inserito', true], [2000, 'ricorrente', false]])
+  // Senza "una tantum" la prenderebbe per lo stipendio di dicembre.
+  const plain = cashflow({ accounts, categories, txs: [...txs, { ...tredicesima, one_off: false }], today })
+  assert.equal(plain.items.filter((i) => i.line === 'entrata:stip' && i.date.startsWith('2026-12')).length, 1)
+  // Stipendio di dicembre cambiato: prende il posto della previsione.
+  const changed = cashflow({ accounts, categories, txs: [...txs, tx('entrata', '2026-12-27', 2100, 'c', { category_id: 'stip', planned: true })], today })
+  assert.deepEqual(changed.items.filter((i) => i.line === 'entrata:stip' && i.date.startsWith('2026-12')).map((i) => i.amount), [2100])
+})
