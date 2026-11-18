@@ -37,6 +37,8 @@ export function occurrences(r, from, until) {
 
 /** Un movimento già presente vale come quello della regola (stesso controllo della funzione nel database). */
 export function matchesRule(t, r) {
+  // Una una tantum (tredicesima, regali) non è mai il movimento di una regola.
+  if (t.one_off) return false
   const same = cents(t.amount) === cents(r.amount)
   if (r.kind === 'giroconto') {
     return t.kind === 'giroconto' && t.account_id === r.account_id && t.to_account_id === r.to_account_id &&

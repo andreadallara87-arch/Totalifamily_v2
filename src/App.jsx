@@ -107,7 +107,7 @@ export default function App() {
     setEntry(next)
     window.history.pushState({ nuovo: true }, '')
   }
-  const openNew = (kind = 'spesa') => openEntry({ kind })
+  const openNew = (kind = 'spesa', preset = null) => openEntry({ kind, preset })
   const openEdit = (tx) => openEntry({ kind: tx.kind, tx })
   const closeNew = () => {
     if (window.history.state?.nuovo) window.history.back()
@@ -204,7 +204,7 @@ export default function App() {
   else if (page === 'movimenti') content = <Movimenti data={data} today={today} onEdit={openEdit} />
   else if (page === 'categorie') content = <Categorie data={data} today={today} onEdit={openEdit} />
   else if (page === 'andamento') content = <Andamento data={data} today={today} go={go} onAssets={onAssets} showToast={showToast} />
-  else if (page === 'flusso') content = <Flusso data={data} today={today} onTxSaved={onTxSaved} onDeleted={onDeleted} onEditCard={setCardEd} onAccountSaved={onAccountSaved} />
+  else if (page === 'flusso') content = <Flusso data={data} today={today} onTxSaved={onTxSaved} onDeleted={onDeleted} onEditCard={setCardEd} onAccountSaved={onAccountSaved} onNew={openNew} />
   else if (page === 'ricorrenti') content = <Ricorrenti data={data} today={today} onRuleSaved={onRuleSaved} onRuleDeleted={onRuleDeleted} onIgnored={onIgnored} />
   else if (page === 'conti') content = <Conti data={data} today={today} onEditCard={setCardEd} />
   else if (page === 'impostazioni') content = <Impostazioni data={data} session={session} look={look} setLook={setLook} onCategorySaved={onCategorySaved} onCategoryDeleted={onCategoryDeleted} />
@@ -276,7 +276,7 @@ export default function App() {
           <a key={p.id} className={`tab${page === p.id ? ' on' : ''}`} href={`#/${p.id}`}><Icon name={p.icon} />{p.short || p.label}</a>
         ))}
       </nav>
-      {entry && data && <NewMovement key={entry.tx?.id || 'nuovo'} data={data} today={today} initialKind={entry.kind} tx={entry.tx} onClose={closeNew} onSaved={onSaved} onDeleted={onDeleted} onCategorySaved={onCategorySaved} />}
+      {entry && data && <NewMovement key={entry.tx?.id || 'nuovo'} data={data} today={today} initialKind={entry.kind} tx={entry.tx} preset={entry.preset} onClose={closeNew} onSaved={onSaved} onDeleted={onDeleted} onCategorySaved={onCategorySaved} />}
       {cardEd && data && <CardSettings key={cardEd.id} account={cardEd} onClose={() => setCardEd(null)} onSaved={onAccountSaved} />}
       {toast && (
         <div className="toast" role="status">

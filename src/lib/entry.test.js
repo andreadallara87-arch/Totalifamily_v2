@@ -44,7 +44,7 @@ test('salvataggio: campi mancanti e riga per il database', () => {
   assert.equal(missingField({ kind: 'giroconto', amount: '3', toAccountId: null }), 'Scegli il conto di arrivo')
   assert.equal(missingField({ kind: 'entrata', amount: '3', categoryId: 'x' }), null)
   const spesa = buildTransaction({ kind: 'spesa', amount: '4,5', date: '2026-11-16', accountId: 'sat', categoryId: 'bar', note: ' caffè ', today: '2026-11-16' })
-  assert.deepEqual(spesa, { kind: 'spesa', date: '2026-11-16', amount: 4.5, account_id: 'sat', to_account_id: null, category_id: 'bar', note: 'caffè', planned: false })
+  assert.deepEqual(spesa, { kind: 'spesa', date: '2026-11-16', amount: 4.5, account_id: 'sat', to_account_id: null, category_id: 'bar', note: 'caffè', planned: false, one_off: false })
   const giro = buildTransaction({ kind: 'giroconto', amount: '200', date: '2026-11-20', accountId: 'x', fromAccountId: 'co', toAccountId: 'sat', categoryId: 'bar', today: '2026-11-16' })
   assert.equal(giro.account_id, 'co'); assert.equal(giro.to_account_id, 'sat'); assert.equal(giro.category_id, null); assert.equal(giro.planned, true)
 })
