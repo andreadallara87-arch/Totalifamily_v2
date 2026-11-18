@@ -1,6 +1,8 @@
 // Flusso di cassa: quanto entra ed esce davvero dai conti, mese per mese, e cosa uscirà nelle prossime settimane
-// con gli impegni che si conoscono già. Nessuna spesa stimata: il fido è un limite che non si supera, quindi
+// con gli impegni che si conoscono già. Nessuna spesa stimata (tranne le ricariche dei borsellini come Satispay,
+// con la media degli ultimi mesi): il fido è un limite che non si supera, quindi
 // quello che conta è quanto resta disponibile, giorno per giorno, restandoci dentro.
+// I borsellini (Satispay) stanno fuori dai conti: escono dai conti le ricariche, non le spese pagate con Satispay.
 // I "conti" sono i conti correnti e simili. Carte, finanziamenti e debiti come un prestito rotativo stanno fuori:
 // una spesa con la carta esce dai conti solo quando paghi la carta, una rata esce intera (capitale e interessi).
 import { addDays, addMonths, balancesAt, cents, dateInMonth, daysBetween, fromCents, rootCategory, ym } from './calc.js'
@@ -17,7 +19,7 @@ const sortByDate = (a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0)
 export function cashAccountIds(accounts, txs) {
   const used = new Set()
   for (const t of txs) if (t.kind !== 'giroconto') used.add(t.account_id)
-  return new Set(accounts.filter((a) => a.kind === 'conto' && (cents(a.initial_balance) >= 0 || used.has(a.id))).map((a) => a.id))
+  return new Set(accounts.filter((a) => a.kind === 'conto' && !a.wallet && (cents(a.initial_balance) >= 0 || used.has(a.id))).map((a) => a.id))
 }
 
 function context({ accounts, categories, txs, today, rules = [] }) {
@@ -27,7 +29,7 @@ function context({ accounts, categories, txs, today, rules = [] }) {
   return { accounts, txs, today, cash, accById, catsById, rules }
 }
 
-const outGroup = (acc) => (acc?.kind === 'finanziamento' ? 'rate' : acc?.kind === 'carta_revolv' ? 'carte' : 'debiti')
+const outGroup = (acc) => (acc?.wallet ? 'borsellino' : acc?.kind === 'finanziamento' ? 'rate' : acc?.kind === 'carta_revolv' ? 'carte' : 'debiti')
 const isAutoLoan = (a) => a && a.kind === 'finanziamento' && a.auto_instalment && Number(a.instalment) > 0 && !a.archived
 /** Carta "a saldo": senza interessi, ogni mese paghi tutto quello che hai speso il mese prima. */
 export const isSaldoCard = (a) => !!a && a.kind === 'carta_revolv' && !a.archived && !(Number(a.tan) > 0)
@@ -112,7 +114,8 @@ export function recurringPatterns(ctx) {
     const m = ym(t.date)
     if (!months.has(m) || t.date > ctx.today) continue
     const c = classify(t, ctx)
-    if (!c || c.group === 'spese') continue
+    // Le ricariche dei borsellini (Satispay) cambiano ogni volta: le prevede `walletPlan`.
+    if (!c || c.group === 'spese' || c.group === 'borsellino') continue
     if (c.group === 'rate' && isAutoLoan(ctx.accById.get(c.accountId))) continue
     if (c.group === 'carte' && isSaldoCard(ctx.accById.get(c.accountId))) continue
     let p = by.get(c.pattern)
@@ -227,7 +230,7 @@ export function cardStatements(ctx, until) {
  * `payments`: rimborso che si sta provando per una carta con interessi in un certo mese, `{ [idCarta]: { 'AAAA-MM': importo } }`,
  * al posto di quello già inserito o di quello dell'ultima volta.
  */
-export function expectedItems(ctx, until, payments = null) {
+export function expectedItems(ctx, until, payments = null, wallets = null) {
   const { txs, today } = ctx
   const patterns = recurringPatterns(ctx)
   const usual = new Map(patterns.map((p) => [p.pattern, p.amount]))
@@ -270,16 +273,74 @@ export function expectedItems(ctx, until, payments = null) {
   for (const r of ctx.rules || []) {
     if (!r.active || r.calc !== 'fisso') continue
     const c = classify({ ...r, date: today }, ctx)
-    if (!c || (c.pattern && known.has(c.pattern))) continue
+    if (!c || c.group === 'borsellino' || (c.pattern && known.has(c.pattern))) continue
     for (const date of occurrences(r, today, until)) {
       if ((c.pattern && seen.has(`${c.pattern}|${ym(date)}`)) || doneInMonth(r, txs, date)) continue
       items.push({ date, dir: c.dir, group: c.group, line: c.line, rootId: c.rootId || null, accountId: c.accountId || null, fromId: c.fromId || null, amount: Number(r.amount), source: 'ricorrente', ruleId: r.id, name: r.name })
     }
   }
+  items.push(...walletPlan(ctx, until, wallets).items)
   return items.sort(sortByDate)
 }
 
-const GROUP_ORDER = { entrate: 0, prelievi: 1, spese: 2, carte: 3, rate: 4, debiti: 5 }
+const WALLET_DAYS = [7, 14, 21, 28]
+
+/**
+ * Ricariche dei borsellini (Satispay): l'unica stima del flusso di cassa, perché cambiano ogni volta ma il totale del mese è stabile.
+ * Ogni mese: la cifra al mese (quella che si sta provando in `trying`, quella salvata in `wallet_monthly`, altrimenti la media
+ * delle ricariche degli ultimi tre mesi completi, arrotondata all'euro) meno quello che è già stato ricaricato in quel mese,
+ * diviso in una ricarica a settimana (il 7, 14, 21 e 28) da domani in poi.
+ */
+export function walletPlan(ctx, until, trying = null) {
+  const { accounts, txs, today, cash } = ctx
+  const cur = ym(today)
+  const first = firstFullMonth(ctx)
+  const past = [addMonths(cur, -3), addMonths(cur, -2), addMonths(cur, -1)].filter((m) => m >= first)
+  const wallets = []
+  const items = []
+  for (const a of accounts) {
+    if (!a.wallet || a.archived) continue
+    const byMonth = new Map()
+    const from = new Map()
+    for (const t of txs) {
+      if (t.kind !== 'giroconto') continue
+      let d
+      if (t.to_account_id === a.id && cash.has(t.account_id)) {
+        d = cents(t.amount)
+        from.set(t.account_id, (from.get(t.account_id) || 0) + d)
+      } else if (t.account_id === a.id && cash.has(t.to_account_id)) d = -cents(t.amount)
+      else continue
+      byMonth.set(ym(t.date), (byMonth.get(ym(t.date)) || 0) + d)
+    }
+    // Un borsellino che non si ricarica mai dai conti (per esempio i risparmi dentro Satispay) non ha niente da prevedere.
+    if (!from.size) continue
+    const fromId = [...from].sort((x, y) => y[1] - x[1])[0][0]
+    const history = past.map((m) => ({ month: m, amount: fromCents(Math.max(0, byMonth.get(m) || 0)) }))
+    const average = history.length ? Math.round(history.reduce((s, h) => s + h.amount, 0) / history.length) : 0
+    const saved = a.wallet_monthly === null || a.wallet_monthly === undefined ? null : Number(a.wallet_monthly)
+    const chosen = trying?.[a.id] ?? null
+    const monthly = chosen ?? saved ?? average
+    const basis = chosen !== null ? 'prova' : saved !== null ? 'scelta' : 'media'
+    const months = []
+    for (let m = cur; m <= ym(until); m = addMonths(m, 1)) {
+      const done = Math.max(0, byMonth.get(m) || 0)
+      const rest = Math.max(0, cents(monthly) - done)
+      let dates = WALLET_DAYS.map((d) => dateInMonth(m, d)).filter((d) => d > today && d <= until)
+      if (!dates.length && endOf(m) > today && endOf(m) <= until) dates = [endOf(m)]
+      const mine = []
+      if (rest > 0) {
+        const part = Math.floor(rest / (dates.length || 1))
+        dates.forEach((date, i) => mine.push({ date, dir: 'out', group: 'borsellino', line: `verso:${a.id}`, accountId: a.id, fromId, amount: fromCents(i === dates.length - 1 ? rest - part * (dates.length - 1) : part), source: 'borsellino', basis }))
+      }
+      months.push({ month: m, done: fromCents(done), rest: fromCents(mine.length ? rest : 0), dates: mine.map((it) => it.date) })
+      items.push(...mine)
+    }
+    wallets.push({ id: a.id, name: a.name, fromId, history, average, saved, chosen, monthly, basis, months })
+  }
+  return { wallets, items }
+}
+
+const GROUP_ORDER = { entrate: 0, prelievi: 1, spese: 2, borsellino: 2.5, carte: 3, rate: 4, debiti: 5 }
 
 function emptyMonth(month, status) {
   return { month, status, lines: new Map(), in: 0, out: 0 }
@@ -307,15 +368,16 @@ function addToMonth(mo, it, part) {
  * Restituisce i mesi passati e quello in corso (entrate e uscite dei conti), i prossimi movimenti con il disponibile
  * dopo ognuno, quanto si può ancora spendere restando dentro il fido e cosa addebiterà ogni carta.
  * `ahead`: per quanti mesi guardare avanti. `payments`: rimborsi delle carte che si stanno provando (vedi `expectedItems`).
+ * `wallets`: ricariche al mese dei borsellini che si stanno provando, `{ [idBorsellino]: importo }` (vedi `walletPlan`).
  */
-export function cashflow({ accounts, categories, txs, today, ahead = 3, back = 3, payments = null, rules = [] }) {
+export function cashflow({ accounts, categories, txs, today, ahead = 3, back = 3, payments = null, wallets = null, rules = [] }) {
   const ctx = context({ accounts, categories, txs, today, rules })
   const cur = ym(today)
   const firstMonth = [addMonths(cur, -back), firstFullMonth(ctx)].sort()[1]
   const lastMonth = addMonths(cur, ahead)
   const until = endOf(lastMonth)
   const pace = paceEstimate(ctx)
-  const expected = expectedItems(ctx, until, payments)
+  const expected = expectedItems(ctx, until, payments, wallets)
   const interest = interestByMonth(ctx)
 
   // Mesi.
@@ -389,6 +451,7 @@ export function cashflow({ accounts, categories, txs, today, ahead = 3, back = 3
     if (l.group === 'prelievi') return `Presi da ${a?.name || 'altro conto'}`
     if (l.group === 'rate') return `Rata ${a?.name || ''}`.trim()
     if (l.group === 'carte') return `Carta ${a?.name || ''}`.trim()
+    if (l.group === 'borsellino') return `Ricarica ${a?.name || ''}`.trim()
     return a?.name || 'Debito'
   }
 
@@ -460,6 +523,7 @@ export function cashflow({ accounts, categories, txs, today, ahead = 3, back = 3
     items,
     budget,
     cards,
+    wallets: walletPlan(ctx, until, wallets).wallets,
   }
 }
 
@@ -469,7 +533,7 @@ export function cashflow({ accounts, categories, txs, today, ahead = 3, back = 3
 export function spendingSplit({ accounts, txs, today, month }) {
   const cash = cashAccountIds(accounts, txs)
   const accById = new Map(accounts.map((a) => [a.id, a]))
-  const r = { total: 0, cash: 0, cards: 0, interest: 0, other: 0 }
+  const r = { total: 0, cash: 0, cards: 0, wallet: 0, interest: 0, other: 0 }
   for (const t of txs) {
     if (t.kind !== 'spesa' || ym(t.date) !== month || t.date > today) continue
     const c = cents(t.amount)
@@ -477,6 +541,7 @@ export function spendingSplit({ accounts, txs, today, month }) {
     r.total += c
     if (cash.has(t.account_id)) r.cash += c
     else if (k === 'carta_revolv') r.cards += c
+    else if (accById.get(t.account_id)?.wallet) r.wallet += c
     else if (k === 'finanziamento') r.interest += c
     else r.other += c
   }

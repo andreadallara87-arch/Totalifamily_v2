@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { cardStatements, cashAccountIds, cashflow, classify, instalments, paceEstimate, recurringPatterns, spendingSplit, statementPeriod } from './cashflow.js'
+import { cardStatements, cashAccountIds, cashflow, classify, instalments, paceEstimate, recurringPatterns, spendingSplit, statementPeriod, walletPlan } from './cashflow.js'
 
 const accounts = [
   { id: 'c', name: 'Conto', kind: 'conto', start_date: '2026-09-01', initial_balance: 100, overdraft: 500 },
@@ -188,5 +188,36 @@ test('carta con interessi: il rimborso già inserito vale al posto di quello del
 })
 
 test('spese del mese divise per dove sono state pagate', () => {
-  assert.deepEqual(spendingSplit({ accounts, txs, today, month: '2026-10' }), { total: 1174, cash: 800, cards: 350, interest: 24, other: 0 })
+  assert.deepEqual(spendingSplit({ accounts, txs, today, month: '2026-10' }), { total: 1174, cash: 800, cards: 350, wallet: 0, interest: 24, other: 0 })
+})
+
+test('borsellino: Satispay fuori dal disponibile, ricariche previste con la media e una a settimana', () => {
+  const wAcc = accounts.map((a) => (a.id === 's' ? { ...a, wallet: true } : a))
+  const wTxs = [
+    ...txs,
+    tx('giroconto', '2026-09-08', 60, 'c', { to_account_id: 's' }),
+    tx('giroconto', '2026-09-22', 100, 'c', { to_account_id: 's' }),
+    tx('giroconto', '2026-10-20', 113, 'c', { to_account_id: 's' }), // ottobre: 50 + 113 = 163
+    tx('giroconto', '2026-11-03', 40, 'c', { to_account_id: 's' }),
+    tx('spesa', '2026-10-21', 30, 's', { category_id: 'cibo' }),
+  ]
+  const wctx = { accounts: wAcc, txs: wTxs, today, cash: cashAccountIds(wAcc, wTxs), accById: new Map(wAcc.map((a) => [a.id, a])), catsById: new Map(categories.map((c) => [c.id, c])) }
+  assert.deepEqual([...wctx.cash], ['c'])
+  assert.equal(classify(wTxs[15], wctx).group, 'borsellino')
+  assert.ok(!recurringPatterns(wctx).some((p) => p.group === 'borsellino'))
+  const plan = walletPlan(wctx, '2026-12-31')
+  const w = plan.wallets[0]
+  assert.equal(w.average, 162) // (160 + 163) / 2, settembre e ottobre
+  assert.deepEqual(w.months[0], { month: '2026-11', done: 40, rest: 122, dates: ['2026-11-14', '2026-11-21', '2026-11-28'] })
+  assert.deepEqual(plan.items.filter((i) => i.date < '2026-12-01').map((i) => i.amount), [40.66, 40.66, 40.68])
+  assert.equal(plan.items.filter((i) => i.date >= '2026-12-01').length, 4)
+  // Cifra provata e cifra salvata.
+  assert.equal(walletPlan(wctx, '2026-11-30', { s: 100 }).wallets[0].months[0].rest, 60)
+  const saved = { ...wctx, accounts: wAcc.map((a) => (a.id === 's' ? { ...a, wallet_monthly: 30 } : a)) }
+  assert.equal(walletPlan(saved, '2026-11-30').items.length, 0) // già ricaricati 40 su 30
+  // Nel flusso: le ricariche escono dal conto, le spese con Satispay no.
+  const r = cashflow({ accounts: wAcc, categories, txs: wTxs, today })
+  assert.ok(r.items.some((i) => i.group === 'borsellino' && i.label === 'Ricarica Satispay'))
+  assert.equal(r.wallets[0].basis, 'media')
+  assert.equal(spendingSplit({ accounts: wAcc, txs: wTxs, today, month: '2026-10' }).wallet, 30)
 })
