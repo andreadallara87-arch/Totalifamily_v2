@@ -186,9 +186,9 @@ export default function Home({ data, today, go, onNew, onEdit, onConfirm, onLimi
         <div className="txt"><div className="nm">Movimenti ricorrenti</div><div className="sb">{rules.filter((r) => r.active).length} attivi, si inseriscono da soli</div></div>
         <Icon name="right" size={18} style={{ color: 'var(--mute)', flex: 'none' }} />
       </a>
-      <a className="row tap" href="#/andamento" onClick={(e) => { e.preventDefault(); go('andamento') }}>
+      <a className="row tap" href="#/flussi?vista=vive" onClick={(e) => { e.preventDefault(); window.location.hash = '/flussi?vista=vive'; window.scrollTo(0, 0) }}>
         <div className="chip c-verde"><Icon name="bars" /></div>
-        <div className="txt"><div className="nm">Andamento mese per mese</div><div className="sb">spese vive, poi patrimonio e debiti</div></div>
+        <div className="txt"><div className="nm">Spese vive mese per mese</div><div className="sb">confronto con il limite, categoria per categoria</div></div>
         <Icon name="right" size={18} style={{ color: 'var(--mute)', flex: 'none' }} />
       </a>
     </section>
@@ -197,17 +197,19 @@ export default function Home({ data, today, go, onNew, onEdit, onConfirm, onLimi
     <section className="card pad">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <h2 className="h">Conti e carte</h2>
-        <a className="lnk" href="#/conti" onClick={(e) => { e.preventDefault(); go('conti') }}>Vedi tutti</a>
+        <a className="lnk" href="#/movimenti" onClick={(e) => { e.preventDefault(); go('movimenti') }}>Tutti i movimenti</a>
       </div>
-      {m.wallets.slice(0, 6).map((a) => {
+      <div className="sb" style={{ marginBottom: 4 }}>Tocca un conto per vedere i suoi movimenti</div>
+      {m.wallets.map((a) => {
         const v = accountVisual(a)
         const b = m.balance(a.id)
         return (
-          <div className="row" key={a.id}>
+          <a className="row tap" key={a.id} href={`#/movimenti?conto=${a.id}`} onClick={() => window.scrollTo(0, 0)}>
             <div className={`chip ${v.chip}`}><Icon name={v.icon} /></div>
             <div className="txt"><div className="nm">{a.name}</div><div className="sb">{accountSubtitle(a, b)}</div></div>
             <Money className="am" value={b} />
-          </div>
+            <Icon name="right" size={16} style={{ color: 'var(--mute)', flex: 'none' }} />
+          </a>
         )
       })}
     </section>

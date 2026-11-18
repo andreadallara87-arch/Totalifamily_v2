@@ -2,11 +2,9 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import Icon from './components/Icon.jsx'
 import Home from './pages/Home.jsx'
 import Movimenti from './pages/Movimenti.jsx'
-import Categorie from './pages/Categorie.jsx'
-import Flusso from './pages/Flusso.jsx'
-import Andamento from './pages/Andamento.jsx'
+import Flussi from './pages/Flussi.jsx'
+import Patrimonio from './pages/Patrimonio.jsx'
 import Ricorrenti from './pages/Ricorrenti.jsx'
-import Conti from './pages/Conti.jsx'
 import Impostazioni, { AppearancePicker } from './pages/Impostazioni.jsx'
 import Login from './pages/Login.jsx'
 import NewMovement from './components/NewMovement.jsx'
@@ -20,22 +18,26 @@ import { insertByDate, replaceTx } from './lib/entry.js'
 import { upsertCategory } from './lib/categories.js'
 import { dayLong } from './lib/format.js'
 
+// Sezioni: Home (con i conti che aprono i movimenti), Flussi (flusso di cassa, spese vive, categorie), Patrimonio.
+// Movimenti non è più una sezione: si apre dalla Home o dal Patrimonio toccando un conto, o da "Tutti i movimenti".
 const PAGES = [
   { id: 'home', label: 'Home', icon: 'home' },
-  { id: 'movimenti', label: 'Movimenti', icon: 'list' },
-  { id: 'categorie', label: 'Categorie', icon: 'pie', desktopOnly: true },
-  { id: 'andamento', label: 'Andamento', icon: 'bars', desktopOnly: true },
-  { id: 'flusso', label: 'Flusso di cassa', short: 'Flusso', icon: 'trend' },
+  { id: 'flussi', label: 'Flussi e report', short: 'Flussi', icon: 'trend' },
+  { id: 'patrimonio', label: 'Patrimonio', icon: 'bank' },
   { id: 'ricorrenti', label: 'Ricorrenti', icon: 'rotate', desktopOnly: true },
-  { id: 'conti', label: 'Conti e carte', short: 'Conti', icon: 'card' },
-  { id: 'impostazioni', label: 'Impostazioni', icon: 'settings', phoneMenu: true },
+  { id: 'impostazioni', label: 'Impostazioni', icon: 'settings' },
+  { id: 'movimenti', label: 'Movimenti', icon: 'list', hidden: true },
 ]
-// Sul telefono: Home, Movimenti, +, Flusso, Conti. Le Impostazioni si aprono toccando la propria iniziale in alto.
-const TABS = PAGES.filter((p) => !p.desktopOnly && !p.phoneMenu)
-const TITLES = { movimenti: 'Movimenti', categorie: 'Spese per categoria', andamento: 'Andamento mese per mese', flusso: 'Flusso di cassa', ricorrenti: 'Movimenti ricorrenti', conti: 'Conti e carte', impostazioni: 'Impostazioni' }
+const NAV = PAGES.filter((p) => !p.hidden)
+// Sul telefono: Home, Flussi, +, Patrimonio, Impostazioni.
+const TABS = NAV.filter((p) => !p.desktopOnly)
+const TITLES = { movimenti: 'Movimenti', flussi: 'Flussi e report', patrimonio: 'Situazione patrimoniale', ricorrenti: 'Movimenti ricorrenti', impostazioni: 'Impostazioni' }
+// Vecchi indirizzi: portano alla sezione nuova.
+const ALIASES = { flusso: 'flussi', andamento: 'flussi', categorie: 'flussi', conti: 'patrimonio' }
 
 const routeFromHash = () => {
-  const id = window.location.hash.replace(/^#\/?/, '').split('?')[0]
+  const raw = window.location.hash.replace(/^#\/?/, '').split('?')[0]
+  const id = ALIASES[raw] || raw
   return PAGES.some((p) => p.id === id) ? id : 'home'
 }
 
@@ -214,11 +216,9 @@ export default function App() {
   if (error) content = <section className="card pad"><h2 className="h">Non riesco a leggere i dati</h2><div className="sb">{error}</div></section>
   else if (!data) content = <section className="card pad"><div className="sb">Carico i tuoi dati…</div></section>
   else if (page === 'movimenti') content = <Movimenti data={data} today={today} onEdit={openEdit} />
-  else if (page === 'categorie') content = <Categorie data={data} today={today} onEdit={openEdit} />
-  else if (page === 'andamento') content = <Andamento data={data} today={today} go={go} onAssets={onAssets} showToast={showToast} />
-  else if (page === 'flusso') content = <Flusso data={data} today={today} onTxSaved={onTxSaved} onDeleted={onDeleted} onEditCard={setCardEd} onAccountSaved={onAccountSaved} onNew={openNew} />
+  else if (page === 'flussi') content = <Flussi data={data} today={today} go={go} onEdit={openEdit} onAssets={onAssets} showToast={showToast} onTxSaved={onTxSaved} onDeleted={onDeleted} onEditCard={setCardEd} onAccountSaved={onAccountSaved} onNew={openNew} />
+  else if (page === 'patrimonio') content = <Patrimonio data={data} today={today} go={go} onAssets={onAssets} showToast={showToast} onEditCard={setCardEd} />
   else if (page === 'ricorrenti') content = <Ricorrenti data={data} today={today} onRuleSaved={onRuleSaved} onRuleDeleted={onRuleDeleted} onIgnored={onIgnored} />
-  else if (page === 'conti') content = <Conti data={data} today={today} onEditCard={setCardEd} />
   else if (page === 'impostazioni') content = <Impostazioni data={data} session={session} look={look} setLook={setLook} onCategorySaved={onCategorySaved} onCategoryDeleted={onCategoryDeleted} />
   else content = <Home data={data} today={today} go={go} onNew={openNew} onEdit={openEdit} onConfirm={confirmCheck} onLimit={onLimit} layout={normalizeLayout(data.settings?.home_layout ?? readLocalLayout())} onLayout={onHomeLayout} />
 
@@ -228,7 +228,7 @@ export default function App() {
       <div className="shell">
         <aside className="card side">
           <div className="brand"><div className="logo">T</div><div style={{ fontSize: 18, fontWeight: 700, letterSpacing: '-0.01em' }}>Totalifamily</div></div>
-          {PAGES.map((p) => (
+          {NAV.map((p) => (
             <a key={p.id} className={`navi${page === p.id ? ' on' : ''}`} href={p.id === 'home' ? '#/' : `#/${p.id}`} aria-current={page === p.id ? 'page' : undefined}>
               <Icon name={p.icon} />{p.label}
             </a>
@@ -263,7 +263,12 @@ export default function App() {
           </header>
 
           <header className="mtop">
-            <a className="avatar" href="#/impostazioni" aria-label="Impostazioni" style={{ width: 40, height: 40, textDecoration: 'none', color: 'inherit' }}>{initial}</a>
+            {TABS.some((p) => p.id === page) ? (
+              <div className="avatar" style={{ width: 40, height: 40 }}>{initial}</div>
+            ) : (
+              // Pagine fuori dalla barra in basso (Movimenti, Ricorrenti): freccia per tornare indietro.
+              <button type="button" className="hb" aria-label="Indietro" onClick={() => (window.history.length > 1 ? window.history.back() : go('home'))}><Icon name="left" /></button>
+            )}
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontSize: 12, lineHeight: '16px', color: 'var(--mute)' }}>{dayLong(today)}</div>
               <div style={{ fontSize: 17, lineHeight: '22px', fontWeight: 700 }}>{page === 'home' ? `Ciao${name ? `, ${name}` : ''}` : TITLES[page]}</div>

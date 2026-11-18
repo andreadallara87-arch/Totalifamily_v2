@@ -150,7 +150,11 @@ function LiveTrend({ data, today, months, sel, setSel, linkMov }) {
   )
 }
 
-export default function Andamento({ data, today, go, onAssets, showToast }) {
+/**
+ * Pezzi della vecchia pagina Andamento, usati da Flussi (spese vive) e da Patrimonio (patrimonio netto, debiti, entrate e spese).
+ * `part`: 'vive' | 'worth' | 'flows'.
+ */
+export default function Andamento({ data, today, go, onAssets, showToast, part = 'vive' }) {
   const { accounts, categories, txs } = data
   const assets = useMemo(() => (Array.isArray(data.settings?.assets) ? data.settings.assets : []), [data.settings])
   const [range, setRange] = useState(12)
@@ -160,8 +164,6 @@ export default function Andamento({ data, today, go, onAssets, showToast }) {
   const debts = useMemo(() => debtChanges(accounts, worth), [accounts, worth])
   const catsById = useMemo(() => new Map(categories.map((c) => [c.id, c])), [categories])
   const [sel, setSel] = useState(ym(today))
-  // Prima le spese vive; la situazione patrimoniale (entrate, patrimonio, debiti) è nella seconda vista.
-  const [view, setView] = useState(() => (window.location.hash.includes('vista=patrimonio') ? 'patrimonio' : 'vive'))
   const m = months.includes(sel) ? sel : months[months.length - 1]
   const cur = flows.find((x) => x.month === m)
   const tops = useMemo(() => topCategories({ txs, catsById, month: m, today }), [txs, catsById, m, today])
@@ -180,18 +182,56 @@ export default function Andamento({ data, today, go, onAssets, showToast }) {
 
   const points = worth.map((p) => ({ key: p.key, value: p.net, label: p.key === 'start' ? `Fine ${monthName(mNum(p.month))}` : p.month === ym(today) ? 'Oggi' : `Fine ${monthName(mNum(p.month))}`, short: p.key === 'start' ? 'inizio' : monthShort(mNum(p.month)) }))
 
-  const tabs = (
-    <div className="segs an-tabs" role="tablist" aria-label="Vista">
-      {[['vive', 'Spese vive'], ['patrimonio', 'Situazione patrimoniale']].map(([id, l]) => (
-        <button key={id} type="button" role="tab" aria-selected={view === id} className={view === id ? 'seg on' : 'seg'} onClick={() => setView(id)}>{l}</button>
-      ))}
-    </div>
+  if (part === 'vive') return <LiveTrend data={data} today={today} months={months} sel={sel} setSel={setSel} linkMov={linkMov} />
+  if (part === 'worth') return (
+    <>
+      <div className="grid g-worth">
+        <section className="card pad">
+          <h2 className="h">Patrimonio netto</h2>
+          <div className="sb">{assets.length ? 'I tuoi beni e quello che hai sui conti, meno quello che devi (mutuo, prestiti, carte, fido usato).' : "Quello che hai sui conti meno quello che devi (mutuo, prestiti, carte, fido usato). Aggiungi qui sotto il valore della casa."}</div>
+          <div className="an-big">
+            <Money className="cbig" value={wPoint ? wPoint.net : now.net} />
+            {wPoint && wPrev && (
+              <span className={`pill ${wPoint.net - wPrev.net >= 0 ? 'pos' : 'warn'}`} style={{ marginTop: 8 }}>
+                {euro(wPoint.net - wPrev.net, { sign: true, decimals: false })} in {monthName(mNum(m))}
+              </span>
+            )}
+          </div>
+          <div className="sb" style={{ marginBottom: 10 }}>{wPoint && wPoint.month === ym(today) ? 'Oggi' : `A fine ${monthName(mNum(m))}`}: {assets.length ? <>beni per <b style={{ color: 'var(--ink)' }}>{euro((wPoint || now).goods, { decimals: false })}</b>, </> : 'hai '}<b style={{ color: 'var(--ink)' }}>{euro(wPoint ? wPoint.have : now.have)}</b> sui conti e devi <b style={{ color: 'var(--ink)' }}>{euro(Math.abs(wPoint ? wPoint.owe : now.owe))}</b></div>
+          <TrendLine points={points} selected={m} onSelect={(k) => k !== 'start' && setSel(k)} />
+          <div className="sb" style={{ marginTop: 12 }}>Ogni mese il patrimonio sale o scende di quanto ti è rimasto (entrate meno spese).</div>
+          <Assets assets={assets} onAssets={onAssets} showToast={showToast} />
+        </section>
+        <section className="card pad">
+          <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12 }}>
+            <h2 className="h">Debiti</h2>
+            <span className="sb">da {startLabel} a oggi</span>
+          </div>
+          <div className={`an-res ${debtDown >= 0 ? 'good' : 'bad'}`} style={{ marginTop: 10 }}>
+            <span>{debtDown >= 0 ? 'Debiti scesi di' : 'Debiti saliti di'}</span>
+            <Money value={Math.abs(debtDown)} />
+          </div>
+          {debts.map((d) => {
+            const a = accounts.find((x) => x.id === d.id)
+            const v = accountVisual(a)
+            const better = d.change >= 0
+            return (
+              <div key={d.id} className="row an-debt">
+                <div className={`chip ${v.chip}`}><Icon name={v.icon} /></div>
+                <div className="txt"><div className="nm">{d.name}</div><div className="sb">era {euro(Math.abs(d.from), { decimals: false })}</div></div>
+                <div className="am">
+                  <Money value={Math.abs(d.to)} />
+                  <span className={`delta ${Math.abs(d.change) < 1 ? '' : better ? 'good' : 'bad'}`}>{Math.abs(d.change) < 1 ? 'uguale' : `${better ? '−' : '+'}${euro(Math.abs(d.change), { decimals: false })}`}</span>
+                </div>
+              </div>
+            )
+          })}
+        </section>
+      </div>
+    </>
   )
-  if (view === 'vive') return <>{tabs}<LiveTrend data={data} today={today} months={months} sel={sel} setSel={setSel} linkMov={linkMov} /></>
-
   return (
     <>
-      {tabs}
       <section className="card pad">
         <div className="chead">
           <div>
@@ -253,49 +293,6 @@ export default function Andamento({ data, today, go, onAssets, showToast }) {
         </div>
       </section>
 
-      <div className="grid g-worth">
-        <section className="card pad">
-          <h2 className="h">Patrimonio netto</h2>
-          <div className="sb">{assets.length ? 'I tuoi beni e quello che hai sui conti, meno quello che devi (mutuo, prestiti, carte, fido usato).' : "Quello che hai sui conti meno quello che devi (mutuo, prestiti, carte, fido usato). Aggiungi qui sotto il valore della casa."}</div>
-          <div className="an-big">
-            <Money className="cbig" value={wPoint ? wPoint.net : now.net} />
-            {wPoint && wPrev && (
-              <span className={`pill ${wPoint.net - wPrev.net >= 0 ? 'pos' : 'warn'}`} style={{ marginTop: 8 }}>
-                {euro(wPoint.net - wPrev.net, { sign: true, decimals: false })} in {monthName(mNum(m))}
-              </span>
-            )}
-          </div>
-          <div className="sb" style={{ marginBottom: 10 }}>{wPoint && wPoint.month === ym(today) ? 'Oggi' : `A fine ${monthName(mNum(m))}`}: {assets.length ? <>beni per <b style={{ color: 'var(--ink)' }}>{euro((wPoint || now).goods, { decimals: false })}</b>, </> : 'hai '}<b style={{ color: 'var(--ink)' }}>{euro(wPoint ? wPoint.have : now.have)}</b> sui conti e devi <b style={{ color: 'var(--ink)' }}>{euro(Math.abs(wPoint ? wPoint.owe : now.owe))}</b></div>
-          <TrendLine points={points} selected={m} onSelect={(k) => k !== 'start' && setSel(k)} />
-          <div className="sb" style={{ marginTop: 12 }}>Ogni mese il patrimonio sale o scende di quanto ti è rimasto (entrate meno spese).</div>
-          <Assets assets={assets} onAssets={onAssets} showToast={showToast} />
-        </section>
-        <section className="card pad">
-          <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12 }}>
-            <h2 className="h">Debiti</h2>
-            <span className="sb">da {startLabel} a oggi</span>
-          </div>
-          <div className={`an-res ${debtDown >= 0 ? 'good' : 'bad'}`} style={{ marginTop: 10 }}>
-            <span>{debtDown >= 0 ? 'Debiti scesi di' : 'Debiti saliti di'}</span>
-            <Money value={Math.abs(debtDown)} />
-          </div>
-          {debts.map((d) => {
-            const a = accounts.find((x) => x.id === d.id)
-            const v = accountVisual(a)
-            const better = d.change >= 0
-            return (
-              <div key={d.id} className="row an-debt">
-                <div className={`chip ${v.chip}`}><Icon name={v.icon} /></div>
-                <div className="txt"><div className="nm">{d.name}</div><div className="sb">era {euro(Math.abs(d.from), { decimals: false })}</div></div>
-                <div className="am">
-                  <Money value={Math.abs(d.to)} />
-                  <span className={`delta ${Math.abs(d.change) < 1 ? '' : better ? 'good' : 'bad'}`}>{Math.abs(d.change) < 1 ? 'uguale' : `${better ? '−' : '+'}${euro(Math.abs(d.change), { decimals: false })}`}</span>
-                </div>
-              </div>
-            )
-          })}
-        </section>
-      </div>
     </>
   )
 }
