@@ -1,0 +1,41 @@
+/* Spese vive del mese (Home) e pagina Andamento */
+.vv { padding: 22px 24px; display: flex; flex-direction: column; gap: 14px; }
+.vv.wide { flex-direction: row; align-items: stretch; gap: 28px; }
+.vv-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+.vv-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 15px; min-height: 34px; }
+.vv-pen { width: 34px; height: 34px; }
+.vv-num { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.vv-big { font-size: 44px; line-height: 50px; font-weight: 700; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; }
+.vv-of { font-size: 20px; font-weight: 600; color: var(--mute); }
+.vv-track { height: 12px; border-radius: 6px; background: var(--track); overflow: hidden; margin: 4px 0 2px; }
+.vv-track > i { display: block; height: 100%; border-radius: 6px; background: var(--acc); transition: width .4s ease; }
+.vv-track.near > i { background: #F5B544; }
+.vv-track.over > i { background: var(--warn); }
+.vv-lead { font-size: 16px; line-height: 23px; }
+.vv-lead b { font-weight: 700; }
+.vv-note { line-height: 18px; }
+.vv-edit { display: flex; flex-direction: column; gap: 8px; padding: 12px 14px; border-radius: 18px; background: var(--soft); }
+.vv-edit-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.vv-flow { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 18px; background: var(--soft); color: inherit; text-decoration: none; }
+.vv-flow .txt { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.vv-flow .nm { font-size: 15px; font-weight: 600; line-height: 20px; }
+.vv.wide .vv-flow { width: 320px; flex: none; align-self: center; }
+@media (max-width: 760px) {
+  .vv { padding: 18px 18px; border-radius: 26px; }
+  .vv-big { font-size: 40px; line-height: 46px; }
+}
+
+/* Andamento: due viste */
+.an-tabs { margin-bottom: 14px; width: max-content; max-width: 100%; justify-self: start; align-self: flex-start; }
+.an-tabs .seg { height: 34px; padding: 0 16px; font-size: 14px; }
+.lv-bars { display: flex; align-items: flex-end; gap: 10px; height: 220px; position: relative; padding-top: 22px; }
+.lv-col { flex: 1; min-width: 0; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 6px; border-radius: 12px; padding: 4px 0; }
+.lv-col.on { background: var(--soft); }
+.lv-col .v { font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.lv-col .bar { width: 60%; max-width: 46px; border-radius: 8px 8px 4px 4px; background: var(--acc); }
+.lv-col .bar.over { background: var(--warn); }
+.lv-col .bar.partial { opacity: .6; }
+.lv-col .l { font-size: 12px; color: var(--mute); }
+.lv-limit { position: absolute; left: 0; right: 0; border-top: 2px dashed var(--grid); pointer-events: none; }
+.lv-limit span { position: absolute; right: 0; top: -20px; font-size: 11px; color: var(--mute); background: var(--bg); padding: 0 4px; border-radius: 6px; }
+.patr-intro { margin-bottom: 14px; }

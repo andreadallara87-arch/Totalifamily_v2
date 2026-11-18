@@ -8,7 +8,7 @@ test('senza layout salvato: ordine di sempre, niente nascosto', () => {
 
 test('layout salvato: toglie doppioni e nomi sconosciuti, aggiunge i riquadri nuovi in fondo', () => {
   const l = normalizeLayout({ order: ['spese', 'boh', 'spese', 'saldo'], hidden: ['conti', 'boh'] })
-  assert.deepEqual(l.order, ['spese', 'saldo', 'grafico', 'arrivo', 'conti', 'finanziamenti'])
+  assert.deepEqual(l.order, ['mese', 'spese', 'saldo', 'grafico', 'arrivo', 'conti', 'finanziamenti'])
   assert.deepEqual(l.hidden, ['conti'])
 })
 
@@ -34,4 +34,12 @@ test('posizione di arrivo trascinando', () => {
   assert.equal(dropIndex(0, 45, 80, 5), 1)
   assert.equal(dropIndex(2, -170, 80, 5), 0)
   assert.equal(dropIndex(3, 900, 80, 5), 4)
+})
+
+test('spese vive: chi aveva un ordine salvato le trova in cima, e restano dove le sposti', () => {
+  const l = normalizeLayout({ order: ['saldo', 'grafico', 'conti', 'spese', 'arrivo', 'finanziamenti'], hidden: ['grafico'] })
+  assert.equal(l.order[0], 'mese')
+  assert.deepEqual(l.hidden, ['grafico'])
+  const moved = normalizeLayout(moveBlock(l, 'mese', 2))
+  assert.equal(moved.order.indexOf('mese'), 3)
 })

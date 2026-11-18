@@ -14,18 +14,14 @@ const GROUPS = [
   { kind: 'finanziamento', title: 'Finanziamenti' },
 ]
 
+const openMovements = (id) => { window.location.hash = `/movimenti?conto=${id}`; window.scrollTo(0, 0) }
+
 export default function Conti({ data, today, onEditCard }) {
   const { accounts, txs } = data
   const bal = useMemo(() => balancesAt(accounts, txs, today), [accounts, txs, today])
   const b = (id) => fromCents(bal.get(id) || 0)
-  const net = accounts.filter((a) => !a.excluded).reduce((s, a) => s + b(a.id), 0)
   return (
     <>
-      <section className="card pad">
-        <div className="sb">Patrimonio netto, tutti i conti</div>
-        <Money value={net} style={{ display: 'block', fontSize: 40, lineHeight: '48px', fontWeight: 700, letterSpacing: '-0.03em' }} />
-        <div className="sb">Saldi al {today.split('-').reverse().join('/')}, esclusi i movimenti futuri</div>
-      </section>
       <div className="grid g-row2">
         {GROUPS.map((g) => {
           const list = accounts.filter((a) => a.kind === g.kind && !a.archived)
@@ -40,17 +36,17 @@ export default function Conti({ data, today, onEditCard }) {
                 const sub = a.kind === 'finanziamento'
                   ? `TAN ${String(a.tan ?? '–').replace('.', ',')}%${a.instalment ? `, rata ${euro(a.instalment, { decimals: false })}` : ''}`
                   : accountSubtitle(a, bb)
-                // Una carta si apre per cambiare chiusura dell'estratto conto, giorno di addebito, piano a rate e bollo.
+                // Una carta si apre per cambiare chiusura dell'estratto conto, giorno di addebito, piano a rate e bollo;
+                // gli altri conti aprono i loro movimenti.
                 const card = a.kind === 'carta_revolv' && onEditCard
-                const Row = card ? 'button' : 'div'
                 return (
-                  <Row className={`row${card ? ' tap' : ''}`} key={a.id} {...(card ? { type: 'button', onClick: () => onEditCard(a), 'aria-label': `${a.name}: modifica i dati della carta` } : {})}>
+                  <button type="button" className="row tap" key={a.id} onClick={() => (card ? onEditCard(a) : openMovements(a.id))} aria-label={card ? `${a.name}: modifica i dati della carta` : `${a.name}: movimenti`}>
                     <div className={`chip ${v.chip}`}><Icon name={v.icon} /></div>
                     <div className="txt"><div className="nm">{a.name}</div><div className="sb">{sub}{card ? cardDays(a) : ''}</div></div>
                     {end ? (
                       <div className="am"><Money value={bb} /><div className="sb" style={{ fontWeight: 400 }}>fino a {monthShortYear(end.end)}</div></div>
                     ) : <Money className="am" value={bb} />}
-                  </Row>
+                  </button>
                 )
               })}
             </section>
