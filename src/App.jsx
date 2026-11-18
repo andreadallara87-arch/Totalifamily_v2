@@ -12,7 +12,7 @@ import Login from './pages/Login.jsx'
 import NewMovement from './components/NewMovement.jsx'
 import CardSettings from './components/CardSettings.jsx'
 import { supabase } from './lib/supabase.js'
-import { loadAll, restoreTransaction, saveAppearance, saveHomeLayout, saveRecurring, updateTransaction } from './lib/data.js'
+import { loadAll, restoreTransaction, saveAppearance, saveHomeLayout, saveRecurring, saveSpendingLimit, updateTransaction } from './lib/data.js'
 import { normalizeLayout, readLocalLayout, writeLocalLayout } from './lib/homeLayout.js'
 import { apply, readLocal } from './lib/appearance.js'
 import { todayRome } from './lib/calc.js'
@@ -25,12 +25,13 @@ const PAGES = [
   { id: 'movimenti', label: 'Movimenti', icon: 'list' },
   { id: 'categorie', label: 'Categorie', icon: 'pie', desktopOnly: true },
   { id: 'andamento', label: 'Andamento', icon: 'bars', desktopOnly: true },
-  { id: 'flusso', label: 'Flusso di cassa', icon: 'trend', desktopOnly: true },
+  { id: 'flusso', label: 'Flusso di cassa', short: 'Flusso', icon: 'trend' },
   { id: 'ricorrenti', label: 'Ricorrenti', icon: 'rotate', desktopOnly: true },
   { id: 'conti', label: 'Conti e carte', short: 'Conti', icon: 'card' },
-  { id: 'impostazioni', label: 'Impostazioni', icon: 'settings' },
+  { id: 'impostazioni', label: 'Impostazioni', icon: 'settings', phoneMenu: true },
 ]
-const TABS = PAGES.filter((p) => !p.desktopOnly)
+// Sul telefono: Home, Movimenti, +, Flusso, Conti. Le Impostazioni si aprono toccando la propria iniziale in alto.
+const TABS = PAGES.filter((p) => !p.desktopOnly && !p.phoneMenu)
 const TITLES = { movimenti: 'Movimenti', categorie: 'Spese per categoria', andamento: 'Andamento mese per mese', flusso: 'Flusso di cassa', ricorrenti: 'Movimenti ricorrenti', conti: 'Conti e carte', impostazioni: 'Impostazioni' }
 
 const routeFromHash = () => {
@@ -149,6 +150,17 @@ export default function App() {
     showToast(`${rule.name}: eliminato. I movimenti già inseriti restano.`)
   }
   const onAssets = (list) => setData((d) => ({ ...d, settings: { ...(d.settings || {}), assets: list } }))
+  // Limite al mese delle spese vive (riquadro in cima alla Home).
+  const onLimit = async (value) => {
+    try {
+      await saveSpendingLimit(value)
+      setData((d) => ({ ...d, settings: { ...(d.settings || {}), spending_limit: value } }))
+      showToast(`Limite delle spese vive: ${value.toLocaleString('it-IT')} € al mese.`)
+    } catch (e) {
+      showToast(`Non sono riuscito a salvarlo: ${e?.message || 'errore sconosciuto'}.`)
+      throw e
+    }
+  }
   // Ordine dei riquadri della Home sul telefono: salvato nel database (uguale su ogni dispositivo) e anche qui.
   const onHomeLayout = (layout) => {
     setData((d) => ({ ...d, settings: { ...(d.settings || {}), home_layout: layout } }))
@@ -208,7 +220,7 @@ export default function App() {
   else if (page === 'ricorrenti') content = <Ricorrenti data={data} today={today} onRuleSaved={onRuleSaved} onRuleDeleted={onRuleDeleted} onIgnored={onIgnored} />
   else if (page === 'conti') content = <Conti data={data} today={today} onEditCard={setCardEd} />
   else if (page === 'impostazioni') content = <Impostazioni data={data} session={session} look={look} setLook={setLook} onCategorySaved={onCategorySaved} onCategoryDeleted={onCategoryDeleted} />
-  else content = <Home data={data} today={today} go={go} onNew={openNew} onEdit={openEdit} onConfirm={confirmCheck} layout={normalizeLayout(data.settings?.home_layout ?? readLocalLayout())} onLayout={onHomeLayout} />
+  else content = <Home data={data} today={today} go={go} onNew={openNew} onEdit={openEdit} onConfirm={confirmCheck} onLimit={onLimit} layout={normalizeLayout(data.settings?.home_layout ?? readLocalLayout())} onLayout={onHomeLayout} />
 
   return (
     <>
@@ -251,7 +263,7 @@ export default function App() {
           </header>
 
           <header className="mtop">
-            <div className="avatar" style={{ width: 40, height: 40 }}>{initial}</div>
+            <a className="avatar" href="#/impostazioni" aria-label="Impostazioni" style={{ width: 40, height: 40, textDecoration: 'none', color: 'inherit' }}>{initial}</a>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontSize: 12, lineHeight: '16px', color: 'var(--mute)' }}>{dayLong(today)}</div>
               <div style={{ fontSize: 17, lineHeight: '22px', fontWeight: 700 }}>{page === 'home' ? `Ciao${name ? `, ${name}` : ''}` : TITLES[page]}</div>

@@ -124,3 +124,11 @@ export async function saveHomeLayout(layout) {
   if (error) { console.warn('Ordine della Home non salvato', error); return false }
   return true
 }
+
+/** Salva il limite al mese delle spese vive. */
+export async function saveSpendingLimit(value) {
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return
+  const { error } = await supabase.from('user_settings').upsert({ owner: user.id, spending_limit: value, updated_at: new Date().toISOString() })
+  if (error) throw error
+}

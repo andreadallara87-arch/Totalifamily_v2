@@ -9,6 +9,7 @@ import { euro, monthName, monthShort, monthYear } from '../lib/format.js'
 import { accountVisual } from '../lib/visual.js'
 import { saveAssets } from '../lib/data.js'
 import { debtChanges, monthlyFlows, netWorthSeries, topCategories, trendMonths } from '../lib/trend.js'
+import { liveByMonth, liveCategories, spendingLimit } from '../lib/vive.js'
 
 const mNum = (m) => Number(m.slice(5, 7))
 const RANGES = [[6, '6 mesi'], [12, '12 mesi'], [120, 'Tutto']]
@@ -73,6 +74,82 @@ function Assets({ assets, onAssets, showToast }) {
   )
 }
 
+/** Spese vive mese per mese contro il limite: la vista principale di Andamento. */
+function LiveTrend({ data, today, months, sel, setSel, linkMov }) {
+  const { categories, txs } = data
+  const limit = spendingLimit(data.settings)
+  const rows = useMemo(() => liveByMonth({ txs, categories, months, today }), [txs, categories, months, today])
+  const catsById = useMemo(() => new Map(categories.map((c) => [c.id, c])), [categories])
+  const m = rows.some((r) => r.month === sel) ? sel : rows[rows.length - 1].month
+  const cur = rows.find((r) => r.month === m)
+  const tops = useMemo(() => liveCategories({ txs, categories, month: m, today }).slice(0, 6), [txs, categories, m, today])
+  const max = Math.max(limit, ...rows.map((r) => r.live)) * 1.08
+  const full = rows.filter((r) => !r.partial)
+  const avg = full.length ? full.reduce((a, r) => a + r.live, 0) / full.length : 0
+  const diff = limit - cur.live
+  const whole = (v) => euro(v, { decimals: false })
+  return (
+    <section className="card pad">
+      <div className="chead">
+        <div>
+          <h2 className="h">Spese vive mese per mese</h2>
+          <div className="sb">Tutte le spese su conti e carte, tranne interessi e commissioni. La linea è il tuo limite di {whole(limit)}.</div>
+        </div>
+      </div>
+      <div className="an-flow" style={{ marginTop: 14 }}>
+        <div className="an-chart">
+          <div className="lv-bars">
+            <div className="lv-limit" style={{ bottom: `${26 + (limit / max) * 150}px` }}/>
+            {rows.map((r) => (
+              <button key={r.month} type="button" className={`lv-col${r.month === m ? ' on' : ''}`} onClick={() => setSel(r.month)} aria-label={`${monthYear(r.month)}: ${euro(r.live)}`}>
+                <span className="v">{whole(r.live)}</span>
+                <span className={`bar${r.live > limit ? ' over' : ''}${r.partial ? ' partial' : ''}`} style={{ height: `${(r.live / max) * 150}px` }} />
+                <span className="l">{monthShort(mNum(r.month))}{r.partial ? '*' : ''}</span>
+              </button>
+            ))}
+          </div>
+          {cur.partial && <div className="sb" style={{ marginTop: 8 }}>* {monthName(mNum(m))} è in corso: conta fino a oggi.</div>}
+          {full.length > 0 && (
+            <div className="an-avg">
+              <div><span>Spese vive in media</span><b className={avg > limit ? 'warn' : 'pos'}>{whole(avg)}</b></div>
+              <div><span>Limite</span><b>{whole(limit)}</b></div>
+              <div className="sb">al mese, sui {full.length === 1 ? 'mese completo' : `${full.length} mesi completi`}. Il limite si cambia dalla Home.</div>
+            </div>
+          )}
+        </div>
+        <div className="an-month">
+          <div className="an-mhead">
+            <button type="button" className="hb" aria-label="Mese precedente" disabled={m <= rows[0].month} onClick={() => setSel(addMonths(m, -1))}><Icon name="left" /></button>
+            <b>{monthYear(m)}</b>
+            <button type="button" className="hb" aria-label="Mese successivo" disabled={m >= rows[rows.length - 1].month} onClick={() => setSel(addMonths(m, 1))}><Icon name="right" /></button>
+          </div>
+          <div className="an-kv"><span>Spese vive</span><Money value={cur.live} /></div>
+          <div className={`an-res ${diff >= 0 ? 'good' : 'bad'}`}>
+            <span>{diff >= 0 ? (cur.partial ? 'Ti restano' : 'Sotto il limite di') : 'Sopra il limite di'}</span>
+            <Money value={Math.abs(diff)} />
+          </div>
+          {tops.length > 0 && (
+            <>
+              <div className="flbl">Dove sono andate</div>
+              {tops.map((t) => {
+                const c = catsById.get(t.id)
+                return (
+                  <button key={t.id} type="button" className="row tap an-top" onClick={() => linkMov(`mese=${m}&tipo=spesa${c ? `&cat=${t.id}` : ''}`)}>
+                    {c ? <CatChip root={c} size="sm" /> : <span className="chip sm c-none"><Icon name="grid" size={17} /></span>}
+                    <div className="txt"><div className="nm">{c ? c.name : 'Senza categoria'}</div><div className="cbar"><i style={{ width: `${t.share * 100}%` }} /></div></div>
+                    <div className="am"><Money value={t.total} /><span className="delta">{Math.round(t.share * 100)}%</span></div>
+                  </button>
+                )
+              })}
+            </>
+          )}
+          <div className="sb" style={{ marginTop: 10 }}>A parte, interessi e commissioni: {euro(cur.financial)}.</div>
+        </div>
+      </div>
+    </section>
+  )
+}
+
 export default function Andamento({ data, today, go, onAssets, showToast }) {
   const { accounts, categories, txs } = data
   const assets = useMemo(() => (Array.isArray(data.settings?.assets) ? data.settings.assets : []), [data.settings])
@@ -83,6 +160,8 @@ export default function Andamento({ data, today, go, onAssets, showToast }) {
   const debts = useMemo(() => debtChanges(accounts, worth), [accounts, worth])
   const catsById = useMemo(() => new Map(categories.map((c) => [c.id, c])), [categories])
   const [sel, setSel] = useState(ym(today))
+  // Prima le spese vive; la situazione patrimoniale (entrate, patrimonio, debiti) è nella seconda vista.
+  const [view, setView] = useState(() => (window.location.hash.includes('vista=patrimonio') ? 'patrimonio' : 'vive'))
   const m = months.includes(sel) ? sel : months[months.length - 1]
   const cur = flows.find((x) => x.month === m)
   const tops = useMemo(() => topCategories({ txs, catsById, month: m, today }), [txs, catsById, m, today])
@@ -101,8 +180,18 @@ export default function Andamento({ data, today, go, onAssets, showToast }) {
 
   const points = worth.map((p) => ({ key: p.key, value: p.net, label: p.key === 'start' ? `Fine ${monthName(mNum(p.month))}` : p.month === ym(today) ? 'Oggi' : `Fine ${monthName(mNum(p.month))}`, short: p.key === 'start' ? 'inizio' : monthShort(mNum(p.month)) }))
 
+  const tabs = (
+    <div className="segs an-tabs" role="tablist" aria-label="Vista">
+      {[['vive', 'Spese vive'], ['patrimonio', 'Situazione patrimoniale']].map(([id, l]) => (
+        <button key={id} type="button" role="tab" aria-selected={view === id} className={view === id ? 'seg on' : 'seg'} onClick={() => setView(id)}>{l}</button>
+      ))}
+    </div>
+  )
+  if (view === 'vive') return <>{tabs}<LiveTrend data={data} today={today} months={months} sel={sel} setSel={setSel} linkMov={linkMov} /></>
+
   return (
     <>
+      {tabs}
       <section className="card pad">
         <div className="chead">
           <div>

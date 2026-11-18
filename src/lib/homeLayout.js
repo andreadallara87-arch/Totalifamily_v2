@@ -1,5 +1,5 @@
 // Ordine e riquadri nascosti della Home sul telefono, salvati per utente (uguali su ogni dispositivo).
-export const HOME_BLOCKS = ['saldo', 'grafico', 'arrivo', 'conti', 'spese', 'finanziamenti']
+export const HOME_BLOCKS = ['mese', 'saldo', 'grafico', 'arrivo', 'conti', 'spese', 'finanziamenti']
 const KEY = 'tf-home'
 
 /** Rende valido un layout letto dal database o dal dispositivo: niente doppioni o nomi sconosciuti, i riquadri nuovi in fondo. */
@@ -7,6 +7,8 @@ export function normalizeLayout(raw) {
   const ok = (id) => HOME_BLOCKS.includes(id)
   const order = []
   for (const id of Array.isArray(raw?.order) ? raw.order : []) if (ok(id) && !order.includes(id)) order.push(id)
+  // "mese" (spese vive) è arrivato dopo: chi aveva già un ordine salvato lo trova in cima, gli altri nuovi in fondo.
+  if (order.length && !order.includes('mese')) order.unshift('mese')
   for (const id of HOME_BLOCKS) if (!order.includes(id)) order.push(id)
   const hidden = HOME_BLOCKS.filter((id) => Array.isArray(raw?.hidden) && raw.hidden.includes(id))
   return { order, hidden }

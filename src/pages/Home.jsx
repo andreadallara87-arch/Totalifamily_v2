@@ -6,6 +6,8 @@ import Money from '../components/Money.jsx'
 import Donut, { DONUT_COLORS } from '../components/Donut.jsx'
 import BalanceChart from '../components/BalanceChart.jsx'
 import CatChip from '../components/CatChip.jsx'
+import LiveCard from '../components/LiveCard.jsx'
+import { liveMonth, spendingLimit } from '../lib/vive.js'
 import { addDays, addMonths, balancesAt, dailySeries, fromCents, lastDayOfMonth, loanEnd, rootCategory, spendingByCategory, upcoming, ym } from '../lib/calc.js'
 import { cashflow } from '../lib/cashflow.js'
 import { ruleItems } from '../lib/recurring.js'
@@ -19,7 +21,7 @@ const PERIODS = [
   { id: 'anno', label: 'Anno', short: 'Anno', days: 365 },
 ]
 
-export default function Home({ data, today, go, onNew, onEdit, onConfirm, layout, onLayout }) {
+export default function Home({ data, today, go, onNew, onEdit, onConfirm, onLimit, layout, onLayout }) {
   const [period, setPeriod] = useState('mese')
   const wide = useWide()
   const { accounts, categories, txs, settings, recurring: rules } = data
@@ -39,8 +41,11 @@ export default function Home({ data, today, go, onNew, onEdit, onConfirm, layout
     const items = [...upcoming({ accounts, txs, today }), ...ruleItems(rules, txs, today, addDays(today, 31))].sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0))
     const checks = txs.filter((t) => t.to_check && t.date <= today)
     const day = Number(today.slice(8, 10))
-    const spend = spendingByCategory(txs, catsById, `${month}-01`, today)
-    const prevSpend = spendingByCategory(txs, catsById, `${prevMonth}-01`, `${prevMonth}-${String(Math.min(day, lastDayOfMonth(prevMonth))).padStart(2, '0')}`)
+    // Spese vive: senza la categoria Costi finanziari (interessi, commissioni, bolli).
+    const live = liveMonth({ txs, categories, today, limit: spendingLimit(settings) })
+    const liveTxs = live.finId ? txs.filter((t) => t.kind !== 'spesa' || rootCategory(catsById, t.category_id)?.id !== live.finId) : txs
+    const spend = spendingByCategory(liveTxs, catsById, `${month}-01`, today)
+    const prevSpend = spendingByCategory(liveTxs, catsById, `${prevMonth}-01`, `${prevMonth}-${String(Math.min(day, lastDayOfMonth(prevMonth))).padStart(2, '0')}`)
     const top = spend.rows.slice(0, 5)
     const rest = spend.rows.slice(5).reduce((s, r) => s + r.total, 0)
     const parts = top.map((r, i) => ({ label: r.name, value: r.total, color: DONUT_COLORS[i] }))
@@ -52,10 +57,11 @@ export default function Home({ data, today, go, onNew, onEdit, onConfirm, layout
     const prevFrom = `${prevMonth}-01`
     const interest = txs.filter((t) => t.kind === 'spesa' && t.date >= prevFrom && t.date <= prevEnd && accById.get(t.account_id)?.kind === 'finanziamento').reduce((s, t) => s + t.amount, 0)
     const wallets = accounts.filter((a) => a.kind !== 'finanziamento' && !a.archived)
-    return { catsById, accById, balance, main, mainBal, startBal, items, checks, spend, prevSpend, parts, loans, interest, prevMonth, wallets }
+    return { catsById, accById, balance, main, mainBal, startBal, items, checks, live, spend, prevSpend, parts, loans, interest, prevMonth, wallets }
   }, [accounts, categories, txs, settings, today, rules])
   // Quanto si può ancora spendere restando dentro il fido, con gli impegni già noti (pagina "Flusso di cassa").
   const flow = useMemo(() => cashflow({ accounts, categories, txs, today, rules }).budget, [accounts, categories, txs, today, rules])
+  const liveCard = <LiveCard live={m.live} flow={wide ? null : flow} go={go} onLimit={onLimit} wide={wide} />
 
   const p = PERIODS.find((x) => x.id === period)
   const series = useMemo(() => (m.main ? dailySeries(m.main, txs, addDays(today, -p.days), today) : []), [m.main, txs, today, p.days])
@@ -166,7 +172,7 @@ export default function Home({ data, today, go, onNew, onEdit, onConfirm, layout
           </Row>
         )
       })}
-      <a className="row tap flow-link" href="#/flusso" onClick={(e) => { e.preventDefault(); go('flusso') }}>
+      {wide && <a className="row tap flow-link" href="#/flusso" onClick={(e) => { e.preventDefault(); go('flusso') }}>
         <div className={`chip ${flow.short ? 'c-rosso' : 'c-blu'}`}><Icon name={flow.short ? 'alert' : 'trend'} /></div>
         {flow.short ? (
           <div className="txt"><div className="nm">Mancano {euro(flow.short.amount, { decimals: false })} per restare nel fido</div><div className="sb">con gli impegni già certi, dal {dayMonth(flow.short.date)}</div></div>
@@ -174,7 +180,7 @@ export default function Home({ data, today, go, onNew, onEdit, onConfirm, layout
           <div className="txt"><div className="nm">Puoi ancora spendere {euro(Math.max(0, flow.windows[0].amount), { decimals: false })}</div><div className="sb">fino al {dayMonth(flow.windows[0].until)}, restando dentro il fido</div></div>
         )}
         <Icon name="right" size={18} style={{ color: 'var(--mute)', flex: 'none' }} />
-      </a>
+      </a>}
       <a className="row tap" href="#/ricorrenti" onClick={(e) => { e.preventDefault(); go('ricorrenti') }}>
         <div className="chip c-viola"><Icon name="rotate" /></div>
         <div className="txt"><div className="nm">Movimenti ricorrenti</div><div className="sb">{rules.filter((r) => r.active).length} attivi, si inseriscono da soli</div></div>
@@ -182,7 +188,7 @@ export default function Home({ data, today, go, onNew, onEdit, onConfirm, layout
       </a>
       <a className="row tap" href="#/andamento" onClick={(e) => { e.preventDefault(); go('andamento') }}>
         <div className="chip c-verde"><Icon name="bars" /></div>
-        <div className="txt"><div className="nm">Andamento mese per mese</div><div className="sb">entrate, spese, patrimonio e debiti</div></div>
+        <div className="txt"><div className="nm">Andamento mese per mese</div><div className="sb">spese vive, poi patrimonio e debiti</div></div>
         <Icon name="right" size={18} style={{ color: 'var(--mute)', flex: 'none' }} />
       </a>
     </section>
@@ -209,10 +215,10 @@ export default function Home({ data, today, go, onNew, onEdit, onConfirm, layout
   const spese = (
     <section className="card pad">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <h2 className="h">Spese di {monthName(Number(today.slice(5, 7)))}</h2>
+        <h2 className="h">Spese vive di {monthName(Number(today.slice(5, 7)))}</h2>
         <a className="lnk" href="#/categorie" onClick={(e) => { e.preventDefault(); go('categorie') }}>Dettagli</a>
       </div>
-      <div className="sb">su tutti i conti e carte, al {Number(today.slice(8, 10))} {monthName(Number(today.slice(5, 7)))}</div>
+      <div className="sb">per categoria, senza interessi e commissioni, al {Number(today.slice(8, 10))} {monthName(Number(today.slice(5, 7)))}</div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 20, marginTop: 14 }}>
         <Donut parts={m.parts}>
           <div style={{ fontSize: 21, lineHeight: '24px', fontWeight: 700, letterSpacing: '-0.02em' }}>{euro(m.spend.total, { decimals: false })}</div>
@@ -272,16 +278,18 @@ export default function Home({ data, today, go, onNew, onEdit, onConfirm, layout
 
   if (!wide) {
     const blocks = {
+      mese: liveCard,
       saldo: <section className="hero">{heroLeft}{actions}</section>,
       grafico: <section className="chart-col">{chart}</section>,
       arrivo, conti, spese, finanziamenti,
     }
     const meta = {
+      mese: { title: 'Spese vive del mese', sub: `${euro(m.live.spent, { decimals: false })} di ${euro(m.live.limit, { decimals: false })}`, icon: 'pie', chip: 'c-verde' },
       saldo: { title: 'Saldo e pulsanti', sub: `${euro(available)} disponibili`, icon: 'bank', chip: 'c-blu' },
       grafico: { title: 'Grafico del saldo', sub: 'andamento del conto', icon: 'trend', chip: 'c-viola' },
       arrivo: { title: 'In arrivo', sub: `${m.items.length} movimenti nei prossimi 30 giorni`, icon: 'calendar', chip: 'c-arancio' },
       conti: { title: 'Conti e carte', sub: `${m.wallets.length} conti e carte`, icon: 'card', chip: 'c-teal' },
-      spese: { title: `Spese di ${monthName(Number(today.slice(5, 7)))}`, sub: `${euro(m.spend.total, { decimals: false })} spesi`, icon: 'pie', chip: 'c-rosa' },
+      spese: { title: `Spese vive per categoria`, sub: `${euro(m.spend.total, { decimals: false })} spesi`, icon: 'pie', chip: 'c-rosa' },
       finanziamenti: { title: 'Finanziamenti', sub: `${euro(loansTotal, { decimals: false })} da restituire`, icon: 'percent', chip: 'c-giallo' },
     }
     return <PhoneHome blocks={blocks} meta={meta} layout={layout} onLayout={onLayout} top={checksBlock} />
@@ -290,6 +298,7 @@ export default function Home({ data, today, go, onNew, onEdit, onConfirm, layout
   return (
     <>
       {checksBlock}
+      {liveCard}
       <div className="grid g-hero">
         <section className="card hero">
           <div className="hero-in">
