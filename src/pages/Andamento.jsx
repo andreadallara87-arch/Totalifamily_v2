@@ -10,6 +10,7 @@ import { accountVisual } from '../lib/visual.js'
 import { saveAssets } from '../lib/data.js'
 import { debtChanges, monthlyFlows, netWorthSeries, topCategories, trendMonths } from '../lib/trend.js'
 import { liveByMonth, liveCategories, spendingLimit } from '../lib/vive.js'
+import { LimitEditor } from '../components/LiveCard.jsx'
 
 const mNum = (m) => Number(m.slice(5, 7))
 const RANGES = [[6, '6 mesi'], [12, '12 mesi'], [120, 'Tutto']]
@@ -75,7 +76,10 @@ function Assets({ assets, onAssets, showToast }) {
 }
 
 /** Spese vive mese per mese contro il limite: la vista principale di Andamento. */
-function LiveTrend({ data, today, months, sel, setSel, linkMov }) {
+function LiveTrend({ data, today, months, sel, setSel, linkMov, onLimit }) {
+  const [ed, setEd] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const saveLimit = async (v) => { setBusy(true); try { await onLimit(v); setEd(false) } finally { setBusy(false) } }
   const { categories, txs } = data
   const limit = spendingLimit(data.settings)
   const rows = useMemo(() => liveByMonth({ txs, categories, months, today }), [txs, categories, months, today])
@@ -113,9 +117,12 @@ function LiveTrend({ data, today, months, sel, setSel, linkMov }) {
             <div className="an-avg">
               <div><span>Spese vive in media</span><b className={avg > limit ? 'warn' : 'pos'}>{whole(avg)}</b></div>
               <div><span>Limite</span><b>{whole(limit)}</b></div>
-              <div className="sb">al mese, sui {full.length === 1 ? 'mese completo' : `${full.length} mesi completi`}. Il limite si cambia dalla Home.</div>
+              <div className="sb">al mese, sui {full.length === 1 ? 'mese completo' : `${full.length} mesi completi`}.</div>
             </div>
           )}
+          {onLimit && (ed
+            ? <div style={{ marginTop: 12 }}><LimitEditor value={limit} busy={busy} onSave={saveLimit} onCancel={() => setEd(false)} /></div>
+            : <button type="button" className="btn small ghost" style={{ marginTop: 12 }} onClick={() => setEd(true)}><Icon name="pen" size={16} />Cambia il limite</button>)}
         </div>
         <div className="an-month">
           <div className="an-mhead">
@@ -154,7 +161,7 @@ function LiveTrend({ data, today, months, sel, setSel, linkMov }) {
  * Pezzi della vecchia pagina Andamento, usati da Flussi (spese vive) e da Patrimonio (patrimonio netto, debiti, entrate e spese).
  * `part`: 'vive' | 'worth' | 'flows'.
  */
-export default function Andamento({ data, today, go, onAssets, showToast, part = 'vive' }) {
+export default function Andamento({ data, today, go, onAssets, showToast, onLimit, part = 'vive' }) {
   const { accounts, categories, txs } = data
   const assets = useMemo(() => (Array.isArray(data.settings?.assets) ? data.settings.assets : []), [data.settings])
   const [range, setRange] = useState(12)
@@ -182,7 +189,7 @@ export default function Andamento({ data, today, go, onAssets, showToast, part =
 
   const points = worth.map((p) => ({ key: p.key, value: p.net, label: p.key === 'start' ? `Fine ${monthName(mNum(p.month))}` : p.month === ym(today) ? 'Oggi' : `Fine ${monthName(mNum(p.month))}`, short: p.key === 'start' ? 'inizio' : monthShort(mNum(p.month)) }))
 
-  if (part === 'vive') return <LiveTrend data={data} today={today} months={months} sel={sel} setSel={setSel} linkMov={linkMov} />
+  if (part === 'vive') return <LiveTrend data={data} today={today} months={months} sel={sel} setSel={setSel} linkMov={linkMov} onLimit={onLimit} />
   if (part === 'worth') return (
     <>
       <div className="grid g-worth">

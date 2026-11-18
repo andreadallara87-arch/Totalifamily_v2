@@ -6,7 +6,7 @@ import { lastDayOfMonth } from '../lib/calc.js'
 const whole = (v) => euro(v, { decimals: false })
 
 /** Limite delle spese vive: si cambia con meno e più (50 € alla volta) o scrivendolo. */
-function LimitEditor({ value, onSave, onCancel, busy }) {
+export function LimitEditor({ value, onSave, onCancel, busy }) {
   const [v, setV] = useState(String(value))
   const n = Number(String(v).replace(/\./g, '').replace(',', '.'))
   const ok = n > 0 && Number.isFinite(n)

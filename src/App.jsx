@@ -219,7 +219,7 @@ export default function App() {
   else if (!data) content = <section className="card pad"><div className="sb">Carico i tuoi dati…</div></section>
   else if (page === 'movimenti') content = <Movimenti data={data} today={today} onEdit={openEdit} />
   else if (page === 'flusso') content = <Flusso data={data} today={today} onTxSaved={onTxSaved} onDeleted={onDeleted} onEditCard={setCardEd} onAccountSaved={onAccountSaved} onNew={openNew} />
-  else if (page === 'spese') content = <Spese data={data} today={today} go={go} onEdit={openEdit} onAssets={onAssets} showToast={showToast} />
+  else if (page === 'spese') content = <Spese data={data} today={today} go={go} onEdit={openEdit} onAssets={onAssets} showToast={showToast} onLimit={onLimit} />
   else if (page === 'patrimonio') content = <Patrimonio data={data} today={today} go={go} onAssets={onAssets} showToast={showToast} onEditCard={setCardEd} />
   else if (page === 'ricorrenti') content = <Ricorrenti data={data} today={today} onRuleSaved={onRuleSaved} onRuleDeleted={onRuleDeleted} onIgnored={onIgnored} />
   else if (page === 'impostazioni') content = <Impostazioni data={data} session={session} look={look} setLook={setLook} onCategorySaved={onCategorySaved} onCategoryDeleted={onCategoryDeleted} />
