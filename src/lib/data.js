@@ -3,10 +3,9 @@ import { supabase } from './supabase.js'
 const TX_FIELDS = 'id, kind, date, amount, account_id, to_account_id, category_id, note, planned, recurring_id, to_check'
 const RULE_FIELDS = 'id, name, kind, account_id, to_account_id, category_id, interest_category_id, amount, calc, day, every_months, next_date, until_month, check_mode, active, sort_order, created_at'
 const CAT_FIELDS = 'id, parent_id, kind, name, icon, symbol, tint, budget, sort_order'
-const ACC_FIELDS = 'id, name, kind, start_date, initial_balance, overdraft, credit_limit, tan, instalment, instalment_day, auto_instalment, payment_account_id, last_instalment, statement_day, plan_amount, plan_until, statement_fee, excluded, archived, sort_order'
 
 const num = (v) => (v === null || v === undefined ? v : Number(v))
-const account = (a) => ({ ...a, initial_balance: num(a.initial_balance), overdraft: num(a.overdraft), credit_limit: num(a.credit_limit), tan: num(a.tan), instalment: num(a.instalment), plan_amount: num(a.plan_amount), statement_fee: num(a.statement_fee) })
+const account = (a) => ({ ...a, initial_balance: num(a.initial_balance), overdraft: num(a.overdraft), credit_limit: num(a.credit_limit), tan: num(a.tan), instalment: num(a.instalment), plan_amount: num(a.plan_amount), statement_fee: num(a.statement_fee), wallet_monthly: num(a.wallet_monthly) })
 
 const rule = (r) => ({ ...r, amount: num(r.amount) })
 
@@ -15,7 +14,8 @@ export async function loadAll() {
   const gen = await supabase.rpc('genera_ricorrenti')
   if (gen.error) console.warn('Movimenti ricorrenti non inseriti', gen.error)
   const [acc, cat, tx, set, imp, rec] = await Promise.all([
-    supabase.from('accounts').select(ACC_FIELDS).order('sort_order'),
+    // Tutte le colonne: così l'app funziona anche prima che il database abbia i borsellini (Satispay).
+    supabase.from('accounts').select('*').order('sort_order'),
     supabase.from('categories').select(CAT_FIELDS).order('sort_order'),
     supabase.from('transactions').select(TX_FIELDS).order('date', { ascending: false }).order('created_at', { ascending: false }).range(0, 49999),
     // Tutte le colonne: così l'app funziona anche prima che il database abbia i "beni" (casa, auto).
@@ -60,7 +60,7 @@ export async function restoreTransaction(full) {
 
 /** Salva le modifiche a un conto o a una carta e restituisce la riga come la legge l'app. */
 export async function updateAccount(id, patch) {
-  const { data, error } = await supabase.from('accounts').update(patch).eq('id', id).select(ACC_FIELDS).single()
+  const { data, error } = await supabase.from('accounts').update(patch).eq('id', id).select('*').single()
   if (error) throw error
   return account(data)
 }

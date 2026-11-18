@@ -161,10 +161,10 @@ export default function App() {
     setData((d) => ({ ...d, txs: edited ? replaceTx(d.txs, row) : insertByDate(d.txs, row) }))
     showToast(message)
   }
-  const onAccountSaved = (acc) => {
+  const onAccountSaved = (acc, text) => {
     setData((d) => ({ ...d, accounts: d.accounts.map((a) => (a.id === acc.id ? acc : a)) }))
     setCardEd(null)
-    showToast(`Dati di ${acc.name} salvati.`)
+    showToast(text || `Dati di ${acc.name} salvati.`)
   }
   const onCategorySaved = (cat, created) => {
     setData((d) => ({ ...d, categories: upsertCategory(d.categories, cat) }))
@@ -204,7 +204,7 @@ export default function App() {
   else if (page === 'movimenti') content = <Movimenti data={data} today={today} onEdit={openEdit} />
   else if (page === 'categorie') content = <Categorie data={data} today={today} onEdit={openEdit} />
   else if (page === 'andamento') content = <Andamento data={data} today={today} go={go} onAssets={onAssets} showToast={showToast} />
-  else if (page === 'flusso') content = <Flusso data={data} today={today} onTxSaved={onTxSaved} onDeleted={onDeleted} onEditCard={setCardEd} />
+  else if (page === 'flusso') content = <Flusso data={data} today={today} onTxSaved={onTxSaved} onDeleted={onDeleted} onEditCard={setCardEd} onAccountSaved={onAccountSaved} />
   else if (page === 'ricorrenti') content = <Ricorrenti data={data} today={today} onRuleSaved={onRuleSaved} onRuleDeleted={onRuleDeleted} onIgnored={onIgnored} />
   else if (page === 'conti') content = <Conti data={data} today={today} onEditCard={setCardEd} />
   else if (page === 'impostazioni') content = <Impostazioni data={data} session={session} look={look} setLook={setLook} onCategorySaved={onCategorySaved} onCategoryDeleted={onCategoryDeleted} />

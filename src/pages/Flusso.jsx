@@ -4,7 +4,7 @@ import Money from '../components/Money.jsx'
 import CatChip from '../components/CatChip.jsx'
 import { daysBetween, ym } from '../lib/calc.js'
 import { cashflow, spendingSplit } from '../lib/cashflow.js'
-import { addTransaction, deleteTransaction, updateTransaction } from '../lib/data.js'
+import { addTransaction, deleteTransaction, updateAccount, updateTransaction } from '../lib/data.js'
 import { dayMonth, dayShort, euro, monthName, monthShort, monthYear } from '../lib/format.js'
 import { accountVisual } from '../lib/visual.js'
 
@@ -62,7 +62,7 @@ function AmountStepper({ value, onChange, label, step = 50 }) {
   )
 }
 
-export default function Flusso({ data, today, onTxSaved, onDeleted, onEditCard }) {
+export default function Flusso({ data, today, onTxSaved, onDeleted, onEditCard, onAccountSaved }) {
   const { accounts, categories, txs } = data
   const [month, setMonth] = useState(ym(today))
   const [more, setMore] = useState(false)
@@ -77,9 +77,17 @@ export default function Flusso({ data, today, onTxSaved, onDeleted, onEditCard }
     else mine[m] = amount
     return { ...p, [cardId]: mine }
   })
-  // Solo impegni già certi: nessuna spesa stimata. Il fido è un limite che non si supera.
+  // Ricariche al mese dei borsellini (Satispay) che stai provando: { [idBorsellino]: importo }. Come i rimborsi, finché non salvi.
+  const [wal, setWal] = useState({})
+  const setWallet = (id, amount) => setWal((w) => {
+    const next = { ...w }
+    if (amount === null) delete next[id]
+    else next[id] = amount
+    return next
+  })
+  // Solo impegni già certi, tranne le ricariche dei borsellini (media degli ultimi mesi). Il fido è un limite che non si supera.
   const rules = data.recurring
-  const r = useMemo(() => cashflow({ accounts, categories, txs, today, payments: pay, rules }), [accounts, categories, txs, today, pay, rules])
+  const r = useMemo(() => cashflow({ accounts, categories, txs, today, payments: pay, wallets: wal, rules }), [accounts, categories, txs, today, pay, wal, rules])
   const catsById = useMemo(() => new Map(categories.map((c) => [c.id, c])), [categories])
   const accById = useMemo(() => new Map(accounts.map((a) => [a.id, a])), [accounts])
 
@@ -120,6 +128,7 @@ export default function Flusso({ data, today, onTxSaved, onDeleted, onEditCard }
     if (it.card) return `${cardParts(it.card, true)} · finora`
     if (it.source === 'rata') return `capitale ${euro(it.capital)} · interessi ${euro(it.interest)}`
     if (it.chosen) return 'importo che stai provando'
+    if (it.source === 'borsellino') return it.basis === 'prova' ? 'stima: cifra che stai provando' : it.basis === 'scelta' ? 'stima: cifra al mese che hai scelto' : 'stima: media degli ultimi mesi'
     if (it.ruleId) return 'movimento ricorrente'
     if (it.source === 'ricorrente') return 'come l’ultima volta'
     return 'già inserito'
@@ -153,6 +162,20 @@ export default function Flusso({ data, today, onTxSaved, onDeleted, onEditCard }
     }
     setSaving(null)
   }
+  // Salva (o toglie, con null) la cifra al mese delle ricariche di un borsellino.
+  async function saveWallet(w, amount) {
+    const key = `w|${w.id}`
+    if (saving) return
+    setSaving(key); setPayErr(null)
+    try {
+      const acc = await updateAccount(w.id, { wallet_monthly: amount })
+      setWallet(w.id, null)
+      onAccountSaved?.(acc, amount === null ? `Ricariche ${w.name}: torno alla media di ${round(w.average)} al mese.` : `Ricariche ${w.name}: ${round(amount)} al mese.`)
+    } catch (e) {
+      setPayErr({ key, text: `Non sono riuscito a salvare: ${e?.message || 'errore sconosciuto'}. Riprova.` })
+    }
+    setSaving(null)
+  }
   async function removePayment(c, n) {
     const key = `${c.id}|${n.date}`
     if (saving) return
@@ -170,6 +193,7 @@ export default function Flusso({ data, today, onTxSaved, onDeleted, onEditCard }
     if (l.group === 'rate') bits.push(`capitale ${euro(l.capital)} · interessi ${euro(l.interest)}`)
     if (l.group === 'debiti') bits.push('rimborso')
     if (l.group === 'carte') bits.push('pagamento della carta')
+    if (l.group === 'borsellino') bits.push(l.expected > 0 ? 'ricariche, in parte stimate' : 'ricariche')
     const when = l.dates.length === 1 ? dayShort(l.dates[0]) : l.dates.length > 1 ? `${l.dates.length} volte` : ''
     if (when) bits.push(when)
     return bits.join(' · ')
@@ -226,7 +250,10 @@ export default function Flusso({ data, today, onTxSaved, onDeleted, onEditCard }
             </span>
           </div>
         ) : null}
-        <div className="sb">Conto: {cashNames} insieme. Calcolo solo quello che so già (rate, carte, stipendio ed entrate che si ripetono): nessuna spesa stimata.</div>
+        <div className="sb">
+          Conto: {cashNames} insieme. Calcolo solo quello che so già (rate, carte, stipendio ed entrate che si ripetono): nessuna spesa stimata
+          {r.wallets.length > 0 ? `, tranne le ricariche di ${list(r.wallets.map((w) => w.name))}. Il saldo di ${list(r.wallets.map((w) => w.name))} non conta nel disponibile.` : '.'}
+        </div>
       </section>
 
       <div className="grid g-fl">
@@ -294,6 +321,50 @@ export default function Flusso({ data, today, onTxSaved, onDeleted, onEditCard }
                 })}
                 {c.next.length === 0 && <div className="sb" style={{ marginTop: 6 }}>Nessun addebito previsto.</div>}
                 {!c.saldo && c.statementDay && c.next.length > 0 && <div className="sb fl-fine">Gli interessi dell'estratto conto contano quando li inserisci come spesa su {c.name}.</div>}
+              </div>
+            )
+          })}
+          {r.wallets.map((w) => {
+            const a = accById.get(w.id)
+            const v = a ? accountVisual(a) : { icon: 'bank', chip: 'c-blu' }
+            const key = `w|${w.id}`
+            const busy = saving === key
+            const base = w.saved ?? w.average
+            const now = w.months[0]
+            const hist = w.history.filter((h) => h.amount > 0 || w.history.length === 1)
+            return (
+              <div key={w.id} className="fl-card">
+                <div className="row">
+                  <span className={`chip ${v.chip}`}><Icon name={v.icon} /></span>
+                  <div className="txt">
+                    <div className="nm">Ricariche {w.name}</div>
+                    <div className="sb">cambiano ogni volta: le stimo sul mese</div>
+                  </div>
+                </div>
+                <div className="fl-due">
+                  <div className="fl-due-h">
+                    <span>Al mese<small>quanto ricarichi</small></span>
+                    <AmountStepper step={10} value={w.monthly} onChange={(x) => { setPayErr(null); setWallet(w.id, x === base ? null : x) }} label={`Ricariche ${w.name} al mese`} />
+                  </div>
+                  <div className="sb">
+                    {hist.length ? <>Media degli ultimi mesi: {round(w.average)} ({hist.map((h) => `${mLabel(h.month)} ${whole(h.amount)}`).join(', ')}). </> : <>Non ci sono ancora mesi completi per fare la media. </>}
+                    {now && <>A {mLabel(now.month)} hai già ricaricato {euro(now.done)}{now.rest > 0 ? `: ne restano circa ${euro(now.rest)}, ${now.dates.length === 1 ? `il ${dayMonth(now.dates[0])}` : `divisi tra il ${list(now.dates.map((d) => String(Number(d.slice(8)))))} ${mLabel(now.month)}`}.` : ', quindi per questo mese non prevedo altro.'}</>}
+                  </div>
+                  {w.chosen !== null ? (
+                    <div className="fl-acts">
+                      <button type="button" className="btn small" disabled={busy} onClick={() => saveWallet(w, w.chosen)}><Icon name="check" size={16} />{busy ? 'Salvo…' : `Salva ${round(w.chosen)} al mese`}</button>
+                      <button type="button" className="lnk" disabled={busy} onClick={() => { setPayErr(null); setWallet(w.id, null) }}>Annulla, torna a {round(base)}</button>
+                    </div>
+                  ) : w.saved !== null ? (
+                    <div className="fl-acts">
+                      <span className="fl-tag ok"><Icon name="check" size={13} />cifra tua, salvata</span>
+                      <button type="button" className="lnk" disabled={busy} onClick={() => saveWallet(w, null)}>{busy ? 'Torno…' : `Torna alla media (${round(w.average)})`}</button>
+                    </div>
+                  ) : (
+                    <div className="fl-tag">media degli ultimi mesi</div>
+                  )}
+                  {payErr?.key === key && <div className="mv-hint err" role="alert" style={{ marginTop: 6, padding: 0 }}><Icon name="alert" size={15} /><span>{payErr.text}</span></div>}
+                </div>
               </div>
             )
           })}
@@ -365,6 +436,7 @@ export default function Flusso({ data, today, onTxSaved, onDeleted, onEditCard }
               <p>
                 Le spese di {mLabel(sel.month)} sono {euro(split.total)}: {euro(split.cash)} pagate dai conti
                 {split.cards > 0 && <>, {euro(split.cards)} con le carte (escono dai conti quando paghi la carta)</>}
+                {split.wallet > 0 && <>, {euro(split.wallet)} con {list(r.wallets.map((w) => w.name)) || 'Satispay'} (dai conti escono le ricariche)</>}
                 {split.interest > 0 && <> e {euro(split.interest)} di interessi, già dentro le rate</>}.
                 {' '}Le rate escono intere dai conti, ma solo gli interessi sono una spesa: il capitale riduce il debito.
               </p>
