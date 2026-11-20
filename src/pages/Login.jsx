@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import Icon from '../components/Icon.jsx'
 import { supabase } from '../lib/supabase.js'
+import { markPasskeyUsed } from '../lib/lock.js'
 
 function friendly(error) {
   const m = `${error?.code || ''} ${error?.message || ''}`
@@ -34,6 +35,7 @@ export default function Login({ recovery, onRecovered }) {
   const onPasskey = () => run(async () => {
     const { error } = await supabase.auth.signInWithPasskey()
     if (error) throw error
+    markPasskeyUsed()
   })
   const onLogin = (e) => { e.preventDefault(); run(async () => {
     const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password: pw })

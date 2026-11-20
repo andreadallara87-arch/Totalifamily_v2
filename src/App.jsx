@@ -8,6 +8,7 @@ import Patrimonio from './pages/Patrimonio.jsx'
 import Ricorrenti from './pages/Ricorrenti.jsx'
 import Impostazioni, { AppearancePicker } from './pages/Impostazioni.jsx'
 import Login from './pages/Login.jsx'
+import Lock from './pages/Lock.jsx'
 import NewMovement from './components/NewMovement.jsx'
 import CardSettings from './components/CardSettings.jsx'
 import { supabase } from './lib/supabase.js'
@@ -18,6 +19,7 @@ import { todayRome } from './lib/calc.js'
 import { insertByDate, replaceTx } from './lib/entry.js'
 import { upsertCategory } from './lib/categories.js'
 import { dayLong } from './lib/format.js'
+import { shouldLock } from './lib/lock.js'
 
 // Sezioni: Home (con i conti che aprono i movimenti), Flusso di cassa, Spese (mese per mese e per categoria), Patrimonio.
 // Movimenti si apre dalla Home toccando un conto o "Tutti i movimenti"; Impostazioni toccando la propria iniziale.
@@ -60,22 +62,37 @@ export default function App() {
   const [entry, setEntry] = useState(null)
   const [cardEd, setCardEd] = useState(null)
   const toastTimer = useRef(null)
+  // Bloccata a ogni apertura; si sblocca con Face ID/password. Dopo un accesso appena fatto dalla schermata di login resta aperta.
+  const [locked, setLocked] = useState(true)
+  const loggedOut = useRef(false)
+  const hiddenAt = useRef(null)
   const today = todayRome()
 
   useEffect(() => { apply(look) }, [look])
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: d }) => setSession(d.session))
+    supabase.auth.getSession().then(({ data: d }) => { if (!d.session) loggedOut.current = true; setSession(d.session) })
     const { data: sub } = supabase.auth.onAuthStateChange((event, s) => {
       if (event === 'PASSWORD_RECOVERY') setRecovery(true)
+      if (!s) { loggedOut.current = true; setLocked(true) }
+      else if (loggedOut.current) { loggedOut.current = false; setLocked(false) }
       setSession(s)
     })
+    // Dopo 5 minuti fuori dall'app, al rientro chiede di nuovo Face ID.
+    const onVis = () => {
+      if (document.visibilityState === 'hidden') hiddenAt.current = Date.now()
+      else {
+        if (shouldLock(hiddenAt.current, Date.now())) setLocked(true)
+        hiddenAt.current = null
+      }
+    }
+    document.addEventListener('visibilitychange', onVis)
     const onHash = () => setPage(routeFromHash())
     // Il tasto "indietro" del telefono chiude la schermata del nuovo movimento invece di uscire dall'app.
     const onPop = () => setEntry(null)
     window.addEventListener('hashchange', onHash)
     window.addEventListener('popstate', onPop)
-    return () => { sub.subscription.unsubscribe(); window.removeEventListener('hashchange', onHash); window.removeEventListener('popstate', onPop) }
+    return () => { sub.subscription.unsubscribe(); document.removeEventListener('visibilitychange', onVis); window.removeEventListener('hashchange', onHash); window.removeEventListener('popstate', onPop) }
   }, [])
 
   const userId = session?.user?.id
@@ -209,7 +226,8 @@ export default function App() {
   }
 
   if (session === undefined) return null
-  if (!session || recovery) return <Login recovery={recovery} onRecovered={() => setRecovery(false)} />
+  if (!session || recovery) return <Login recovery={recovery} onRecovered={() => { setRecovery(false); setLocked(false) }} />
+  if (locked) return <Lock session={session} onUnlock={() => setLocked(false)} />
 
   const name = session.user.user_metadata?.name || ''
   const initial = (name || session.user.email || '?').charAt(0).toUpperCase()
